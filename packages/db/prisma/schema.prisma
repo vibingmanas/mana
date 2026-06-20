@@ -204,6 +204,7 @@ model User {
   sellRequests  SellRequest[]
   disputes      Dispute[]      @relation("DisputeRaiser")
   inspectorJobs InspectionJob[] @relation("InspectorJobs")
+  dealerStaffOf DealerStaff[]  @relation("StaffMembership")
 
   @@index([role])
 }
@@ -344,9 +345,49 @@ model Dealer {
   rcTransfers         RcTransferCase[]
   subscription        Subscription?
   invoices            Invoice[]
+  staff               DealerStaff[]
+  syndication         SyndicationTarget[]
 
   @@index([status])
   @@index([verificationTier])
+}
+
+enum DealerStaffRole {
+  MANAGER
+  SALES
+}
+
+// A non-owner user with scoped access to a dealer's DMS (owner manages the roster).
+model DealerStaff {
+  id        String          @id @default(cuid())
+  dealerId  String
+  dealer    Dealer          @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User            @relation("StaffMembership", fields: [userId], references: [id], onDelete: Cascade)
+  role      DealerStaffRole @default(SALES)
+  createdAt DateTime        @default(now())
+
+  @@unique([dealerId, userId])
+  @@index([userId])
+}
+
+enum SyndicationChannel {
+  OLX
+  CARWALE
+  CARS24
+  FACEBOOK
+}
+
+// Per-dealer toggle of which external marketplaces the live-listings feed targets.
+model SyndicationTarget {
+  id        String             @id @default(cuid())
+  dealerId  String
+  dealer    Dealer             @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  channel   SyndicationChannel
+  enabled   Boolean            @default(true)
+  createdAt DateTime           @default(now())
+
+  @@unique([dealerId, channel])
 }
 
 model DealerKYC {
