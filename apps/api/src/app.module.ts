@@ -13,6 +13,7 @@ import { AppointmentsModule } from './appointments/appointments.module';
 import { DmsModule } from './dms/dms.module';
 import { AdminModule } from './admin/admin.module';
 import { InspectionsModule } from './inspections/inspections.module';
+import { FinanceModule } from './finance/finance.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { InspectionsModule } from './inspections/inspections.module';
     DmsModule,
     AdminModule,
     InspectionsModule,
+    FinanceModule,
     HealthModule,
   ],
 })

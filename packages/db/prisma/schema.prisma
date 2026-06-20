@@ -134,6 +134,39 @@ enum CertificationTier {
   MANA_CERTIFIED
 }
 
+enum FinanceStatus {
+  ELIGIBILITY
+  APPLIED
+  APPROVED
+  REJECTED
+  DISBURSED
+}
+
+enum InsuranceStatus {
+  QUOTED
+  PURCHASED
+  TRANSFERRED
+}
+
+enum RcTransferStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum CommissionSource {
+  FINANCE
+  INSURANCE
+  RC
+  FLOORPLAN
+}
+
+enum CommissionStatus {
+  ACCRUED
+  INVOICED
+  PAID
+}
+
 // ─── Identity ───────────────────────────────────────────────
 
 model User {
@@ -206,12 +239,14 @@ model Dealer {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  kyc          DealerKYC?
-  onboarding   OnboardingProgress?
-  vehicles     Vehicle[]
-  leads        Lead[]
-  availability DealerAvailability[]
-  appointments Appointment[]
+  kyc                 DealerKYC?
+  onboarding          OnboardingProgress?
+  vehicles            Vehicle[]
+  leads               Lead[]
+  availability        DealerAvailability[]
+  appointments        Appointment[]
+  financeApplications FinanceApplication[]
+  rcTransfers         RcTransferCase[]
 
   @@index([status])
   @@index([verificationTier])
@@ -262,10 +297,13 @@ model Buyer {
   preferences Json?
   createdAt   DateTime @default(now())
 
-  leads         Lead[]
-  wishlist      Wishlist[]
-  savedSearches SavedSearch[]
-  appointments  Appointment[]
+  leads               Lead[]
+  wishlist            Wishlist[]
+  savedSearches       SavedSearch[]
+  appointments        Appointment[]
+  financeApplications FinanceApplication[]
+  insurancePolicies   InsurancePolicy[]
+  rcTransfers         RcTransferCase[]
 }
 
 model Lead {
@@ -349,6 +387,74 @@ model Certification {
   expiresAt DateTime?
 }
 
+// ─── Financing / insurance / RC transfer (plan 09) ──────────
+
+model FinanceApplication {
+  id           String        @id @default(cuid())
+  buyerId      String
+  buyer        Buyer         @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  vehicleId    String
+  vehicle      Vehicle       @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealerId     String
+  dealer       Dealer        @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  amount       Int
+  downPayment  Int           @default(0)
+  tenureMonths Int
+  partner      String?
+  status       FinanceStatus @default(APPLIED)
+  partnerRef   String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([buyerId])
+  @@index([dealerId, status])
+}
+
+model InsurancePolicy {
+  id        String          @id @default(cuid())
+  buyerId   String
+  buyer     Buyer           @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle         @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  partner   String?
+  premium   Int
+  coverage  Json?
+  status    InsuranceStatus @default(QUOTED)
+  createdAt DateTime        @default(now())
+
+  @@index([buyerId])
+}
+
+model RcTransferCase {
+  id        String           @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  buyerId   String
+  buyer     Buyer            @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  dealerId  String
+  dealer    Dealer           @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  steps     Json
+  status    RcTransferStatus @default(OPEN)
+  fee       Int?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([dealerId, status])
+}
+
+model ReferralCommission {
+  id         String           @id @default(cuid())
+  sourceType CommissionSource
+  sourceId   String
+  partner    String?
+  amount     Int
+  status     CommissionStatus @default(ACCRUED)
+  createdAt  DateTime         @default(now())
+
+  @@index([sourceType])
+  @@index([status])
+}
+
 model DealerAvailability {
   id               String   @id @default(cuid())
   dealerId         String
@@ -422,13 +528,16 @@ model Vehicle {
   updatedAt       DateTime      @updatedAt
 
   verification VehicleVerification?
-  media          MediaAsset[]
-  leads          Lead[]
-  wishlistedBy   Wishlist[]
-  appointments   Appointment[]
-  inspections    Inspection[]
-  odometerChecks OdometerCheck[]
-  certification  Certification?
+  media               MediaAsset[]
+  leads               Lead[]
+  wishlistedBy        Wishlist[]
+  appointments        Appointment[]
+  inspections         Inspection[]
+  odometerChecks      OdometerCheck[]
+  certification       Certification?
+  financeApplications FinanceApplication[]
+  insurancePolicies   InsurancePolicy[]
+  rcTransfers         RcTransferCase[]
 
   @@unique([dealerId, regNumber])
   @@index([status])

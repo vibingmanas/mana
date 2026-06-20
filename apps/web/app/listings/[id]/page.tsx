@@ -44,6 +44,16 @@ function inr(n: number | null): string {
   return n >= 100000 ? `₹${(n / 100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
 }
 
+/** EMI on 80% of price at 11.99% for 60 months (indicative). */
+function estimatedEmi(price: number | null): number | null {
+  if (!price) return null;
+  const loan = price * 0.8;
+  const r = 11.99 / 12 / 100;
+  const n = 60;
+  const pow = Math.pow(1 + r, n);
+  return Math.round((loan * r * pow) / (pow - 1));
+}
+
 function dealLabel(score: number | null): { text: string; color: string } | null {
   if (score == null) return null;
   if (score >= 0.08) return { text: 'Great deal', color: 'var(--accent)' };
@@ -114,6 +124,11 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
               </div>
             ) : null;
           })()}
+          {estimatedEmi(car.price) && (
+            <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
+              EMI from ₹{estimatedEmi(car.price)!.toLocaleString('en-IN')}/mo
+            </div>
+          )}
         </div>
       </div>
       <p style={{ color: 'var(--muted)', marginTop: 4 }}>
