@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { api, getToken, setTokens, type ApiError } from '../../../lib/api';
+import { api, getToken, setTokens, ApiError } from '../../../lib/api';
 import { C, btnPrimary, btnGhost, input } from '../../../lib/ds';
 
 const errMsg = (e: unknown) => (e as ApiError)?.message ?? 'Something went wrong';
@@ -24,7 +24,14 @@ export default function BuyerActions({ vehicleId }: { vehicleId: string }) {
     try {
       await fn();
     } catch (e) {
-      setError(errMsg(e));
+      // Session expired and couldn't be refreshed — send back to sign-in.
+      if (e instanceof ApiError && e.status === 401) {
+        setAuthed(false);
+        setOtpSent(false);
+        setError('Your session expired. Please sign in again.');
+      } else {
+        setError(errMsg(e));
+      }
     } finally {
       setBusy(false);
     }
