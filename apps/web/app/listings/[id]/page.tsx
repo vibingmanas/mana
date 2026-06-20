@@ -18,6 +18,9 @@ interface Listing {
   dealScore: number | null;
   city: string | null;
   media: { url: string; type: string }[];
+  certification: { tier: string } | null;
+  inspections: { grade: string | null; overallScore: number | null }[];
+  odometerChecks: { fraudRisk: string }[];
   verification: {
     verifiedAt: string | null;
     rcStatus: string | null;
@@ -54,6 +57,14 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
   if (!car) notFound();
 
   const v = car.verification;
+  const insp = car.inspections?.[0];
+  const odo = car.odometerChecks?.[0];
+  const certLabel: Record<string, string> = {
+    SELF_DECLARED: 'Self-declared',
+    AI_CHECKED: 'AI-checked',
+    MANA_INSPECTED: 'Mana Inspected',
+    MANA_CERTIFIED: 'Mana Certified',
+  };
   const badges: { label: string; ok: boolean }[] = [
     { label: 'RC verified', ok: !!v?.verifiedAt },
     { label: 'No active loan', ok: v?.hypothecationActive === false },
@@ -62,6 +73,7 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
       ok: !!v?.insuranceValidTill && new Date(v.insuranceValidTill) > new Date(),
     },
     { label: `${v?.challanCount ?? 0} challans`, ok: (v?.challanCount ?? 0) === 0 },
+    { label: `Odometer ${odo?.fraudRisk ?? 'unchecked'}`, ok: (odo?.fraudRisk ?? 'LOW') === 'LOW' },
   ];
 
   return (
@@ -113,7 +125,24 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
       <section
         style={{ background: 'var(--card)', borderRadius: 12, padding: '1.25rem', marginTop: 20 }}
       >
-        <strong>Trust &amp; verification</strong>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <strong>Trust &amp; verification</strong>
+          {car.certification && (
+            <span
+              style={{
+                padding: '4px 12px',
+                borderRadius: 999,
+                background: 'rgba(45,212,191,0.18)',
+                color: 'var(--accent)',
+                fontSize: 13,
+                fontWeight: 600,
+              }}
+            >
+              {certLabel[car.certification.tier] ?? car.certification.tier}
+              {insp?.grade ? ` · Grade ${insp.grade}` : ''}
+            </span>
+          )}
+        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
           {badges.map((b) => (
             <span

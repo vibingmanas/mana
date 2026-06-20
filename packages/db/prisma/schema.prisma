@@ -115,6 +115,25 @@ enum AppointmentStatus {
   CANCELLED
 }
 
+enum InspectionType {
+  PHYSICAL
+  AI_PHOTO
+  SELF
+}
+
+enum FraudRisk {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CertificationTier {
+  SELF_DECLARED
+  AI_CHECKED
+  MANA_INSPECTED
+  MANA_CERTIFIED
+}
+
 // ─── Identity ───────────────────────────────────────────────
 
 model User {
@@ -291,6 +310,45 @@ model SavedSearch {
   @@index([buyerId])
 }
 
+model Inspection {
+  id              String         @id @default(cuid())
+  vehicleId       String
+  vehicle         Vehicle        @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type            InspectionType
+  templateVersion String         @default("v1")
+  overallScore    Int? // 0..100
+  grade           String? // A | B | C | D
+  sectionScores   Json?
+  status          String         @default("completed")
+  reportUrl       String?
+  completedAt     DateTime?
+  createdAt       DateTime       @default(now())
+
+  @@index([vehicleId])
+}
+
+model OdometerCheck {
+  id          String    @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  declaredKm  Int
+  estimatedKm Int
+  fraudRisk   FraudRisk
+  signals     Json
+  checkedAt   DateTime  @default(now())
+
+  @@index([vehicleId])
+}
+
+model Certification {
+  id        String            @id @default(cuid())
+  vehicleId String            @unique
+  vehicle   Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  tier      CertificationTier
+  issuedAt  DateTime          @default(now())
+  expiresAt DateTime?
+}
+
 model DealerAvailability {
   id               String   @id @default(cuid())
   dealerId         String
@@ -364,10 +422,13 @@ model Vehicle {
   updatedAt       DateTime      @updatedAt
 
   verification VehicleVerification?
-  media        MediaAsset[]
-  leads        Lead[]
-  wishlistedBy Wishlist[]
-  appointments Appointment[]
+  media          MediaAsset[]
+  leads          Lead[]
+  wishlistedBy   Wishlist[]
+  appointments   Appointment[]
+  inspections    Inspection[]
+  odometerChecks OdometerCheck[]
+  certification  Certification?
 
   @@unique([dealerId, regNumber])
   @@index([status])

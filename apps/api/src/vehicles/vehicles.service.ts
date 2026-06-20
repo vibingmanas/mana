@@ -11,6 +11,7 @@ import { VerificationService } from '../verification/verification.service';
 import type { AddMediaDto, CreateVehicleDto, SearchListingsDto, UpdateVehicleDto } from './dto';
 import { publishBlocker } from './rules';
 import { estimateValuation, dealScore } from './valuation';
+import { assessOdometer } from '../inspections/odometer';
 
 function parseDate(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
@@ -169,11 +170,16 @@ export class VehiclesService {
     const photos = await this.prisma.mediaAsset.count({
       where: { vehicleId, type: MediaType.PHOTO },
     });
+    const odometer = assessOdometer({
+      declaredKm: vehicle.odometerKm ?? 0,
+      manufactureYear: vehicle.manufactureYear,
+    });
     const blocker = publishBlocker({
       tierOk: this.dealers.hasTier(dealer, VerificationTier.T1),
       rcVerified: !!verification?.verifiedAt,
       photoCount: photos,
       hasPrice: !!vehicle.price,
+      odometerHighRisk: odometer.fraudRisk === 'HIGH',
     });
     if (blocker) throw new BadRequestException(blocker);
 
@@ -228,6 +234,8 @@ export class VehiclesService {
         include: {
           media: { orderBy: { position: 'asc' }, take: 1 },
           verification: true,
+          certification: true,
+          inspections: { orderBy: { createdAt: 'desc' }, take: 1 },
           dealer: { select: { displayName: true, city: true, verificationTier: true } },
         },
       }),
@@ -241,6 +249,9 @@ export class VehiclesService {
       include: {
         media: { orderBy: { position: 'asc' } },
         verification: true,
+        certification: true,
+        inspections: { orderBy: { createdAt: 'desc' }, take: 1 },
+        odometerChecks: { orderBy: { checkedAt: 'desc' }, take: 1 },
         dealer: { select: { displayName: true, city: true, state: true, verificationTier: true } },
       },
     });
