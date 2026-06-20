@@ -54,6 +54,19 @@ export class AuthService {
     };
   }
 
+  /** Admin-only: mint a short-lived access token to act as another user (audited by caller). */
+  async impersonate(
+    targetUserId: string,
+  ): Promise<{ accessToken: string; user: { id: string; role: UserRole } }> {
+    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new UnauthorizedException('Target user not found');
+    const accessToken = await this.jwt.signAsync(
+      { sub: user.id, role: user.role, imp: true },
+      { expiresIn: '15m' as unknown as JwtSignOptions['expiresIn'] },
+    );
+    return { accessToken, user: { id: user.id, role: user.role } };
+  }
+
   async refresh(refreshToken: string): Promise<TokenPair> {
     const tokenHash = this.hashToken(refreshToken);
     const record = await this.prisma.refreshToken.findUnique({
