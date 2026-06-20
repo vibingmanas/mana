@@ -197,5 +197,76 @@ const imp = await call(
 );
 ok(!!imp.json.accessToken, 'admin minted an impersonation token');
 
+// inspection workflow: dealer request -> admin assign -> inspector submit -> history
+const inspCode = (
+  await call('/auth/otp/request', { method: 'POST', body: { phone: '+919000000003' } })
+).json.devCode;
+const it = (
+  await call('/auth/otp/verify', {
+    method: 'POST',
+    body: { phone: '+919000000003', code: inspCode },
+  })
+).json.accessToken;
+const inspectorId = (await call('/auth/me', { token: it })).json.userId;
+ok(!!it && !!inspectorId, 'inspector authenticated (seeded)');
+
+const job = await call(`/vehicles/${vid}/inspection-request`, {
+  method: 'POST',
+  body: { location: 'Pune hub' },
+  token: dt,
+});
+ok(job.status === 201, 'dealer requested a physical inspection');
+
+const assigned = await call(`/inspections/jobs/${job.json.id}/assign`, {
+  method: 'POST',
+  body: { inspectorId },
+  token: at,
+});
+ok(assigned.json.status === 'ASSIGNED', 'admin assigned job to inspector');
+
+ok(
+  (await call('/inspections/jobs', { token: it })).json.some((j) => j.id === job.json.id),
+  'job in inspector worklist',
+);
+await call(`/inspections/jobs/${job.json.id}/start`, { method: 'POST', token: it });
+const sections = {
+  engine: 92,
+  transmission: 90,
+  electrical: 88,
+  suspensionBrakes: 90,
+  structureBody: 92,
+  interior: 88,
+  tyres: 86,
+  ac: 90,
+};
+const sub = await call(`/inspections/jobs/${job.json.id}/submit`, {
+  method: 'POST',
+  body: { sectionScores: sections, odometerKm: 50000, clientRef: 'ci-ref-1' },
+  token: it,
+});
+ok(
+  sub.json.inspection?.grade === 'A' && !sub.json.replayed,
+  'inspector submitted physical inspection (grade A)',
+);
+
+const replay = await call(`/inspections/jobs/${job.json.id}/submit`, {
+  method: 'POST',
+  body: { sectionScores: sections, clientRef: 'ci-ref-1' },
+  token: it,
+});
+ok(replay.json.replayed === true, 'offline replay is idempotent (same clientRef)');
+
+const hist = await call(`/vehicles/${vid}/history`).then((r) => r.json);
+ok(
+  hist.inspections.some((i) => i.type === 'PHYSICAL') &&
+    hist.certification?.tier === 'MANA_INSPECTED',
+  'vehicle-history shows physical inspection + MANA_INSPECTED cert',
+);
+
+ok(
+  (await call('/inspections/jobs', { token: bt })).status === 403,
+  'buyer denied inspector worklist (403)',
+);
+
 console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILURE(S)'}`);
 process.exit(failures === 0 ? 0 : 1);

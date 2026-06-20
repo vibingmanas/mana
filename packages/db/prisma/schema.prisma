@@ -203,6 +203,7 @@ model User {
   notifications Notification[]
   sellRequests  SellRequest[]
   disputes      Dispute[]      @relation("DisputeRaiser")
+  inspectorJobs InspectionJob[] @relation("InspectorJobs")
 
   @@index([role])
 }
@@ -458,6 +459,41 @@ model Inspection {
   completedAt     DateTime?
   createdAt       DateTime       @default(now())
 
+  job             InspectionJob?
+
+  @@index([vehicleId])
+}
+
+enum InspectionJobStatus {
+  REQUESTED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Scheduled physical inspection assigned to an INSPECTOR. Offline app submits
+// results with a clientRef for idempotent replay over flaky field networks.
+model InspectionJob {
+  id                  String              @id @default(cuid())
+  vehicleId           String
+  vehicle             Vehicle             @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  requestedByUserId   String
+  assignedInspectorId String?
+  assignedInspector   User?               @relation("InspectorJobs", fields: [assignedInspectorId], references: [id])
+  status              InspectionJobStatus @default(REQUESTED)
+  scheduledAt         DateTime?
+  location            String?
+  notes               String?
+  clientRef           String?             @unique
+  inspectionId        String?             @unique
+  inspection          Inspection?         @relation(fields: [inspectionId], references: [id])
+  startedAt           DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  @@index([assignedInspectorId, status])
   @@index([vehicleId])
 }
 
@@ -670,6 +706,7 @@ model Vehicle {
   wishlistedBy        Wishlist[]
   appointments        Appointment[]
   inspections         Inspection[]
+  inspectionJobs      InspectionJob[]
   odometerChecks      OdometerCheck[]
   certification       Certification?
   financeApplications FinanceApplication[]
