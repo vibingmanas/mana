@@ -64,4 +64,5 @@ export class SearchListingsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) maxPrice?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit?: number;
+  @IsOptional() @IsIn(['recent', 'price_asc', 'price_desc', 'deal']) sort?: string;
 }

@@ -41,7 +41,7 @@ export default async function Listings({
 }) {
   const sp = await searchParams;
   const params: Record<string, string> = {};
-  for (const k of ['make', 'model', 'city', 'fuelType', 'minPrice', 'maxPrice']) {
+  for (const k of ['make', 'model', 'city', 'fuelType', 'minPrice', 'maxPrice', 'sort']) {
     if (sp[k]) params[k] = sp[k];
   }
   const { total, items } = await search(params);
@@ -61,6 +61,12 @@ export default async function Listings({
           placeholder="Max ₹"
           style={fInput}
         />
+        <select name="sort" defaultValue={sp.sort ?? 'recent'} style={fInput}>
+          <option value="recent">Newest</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="price_desc">Price: high to low</option>
+          <option value="deal">Best deals</option>
+        </select>
         <button style={fBtn}>Search</button>
       </form>
 

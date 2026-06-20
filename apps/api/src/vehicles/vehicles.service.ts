@@ -12,6 +12,7 @@ import type { AddMediaDto, CreateVehicleDto, SearchListingsDto, UpdateVehicleDto
 import { publishBlocker } from './rules';
 import { estimateValuation, dealScore } from './valuation';
 import { assessOdometer } from '../inspections/odometer';
+import { AlertsService } from '../alerts/alerts.service';
 
 function parseDate(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
@@ -25,6 +26,7 @@ export class VehiclesService {
     private readonly prisma: PrismaService,
     private readonly dealers: DealersService,
     private readonly verification: VerificationService,
+    private readonly alerts: AlertsService,
   ) {}
 
   private async ownedVehicle(userId: string, vehicleId: string): Promise<Vehicle> {
@@ -73,8 +75,15 @@ export class VehiclesService {
   }
 
   async update(userId: string, vehicleId: string, dto: UpdateVehicleDto) {
-    await this.ownedVehicle(userId, vehicleId);
-    return this.prisma.vehicle.update({ where: { id: vehicleId }, data: { ...dto } });
+    const existing = await this.ownedVehicle(userId, vehicleId);
+    const updated = await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { ...dto },
+    });
+    if (dto.price != null && dto.price !== existing.price) {
+      await this.alerts.onPriceChange(vehicleId, existing.price, dto.price);
+    }
+    return updated;
   }
 
   async verifyRc(userId: string, vehicleId: string, meta: { ip?: string; userAgent?: string }) {
@@ -224,11 +233,18 @@ export class VehiclesService {
         ? { price: { gte: q.minPrice ?? 0, lte: q.maxPrice ?? 100_000_000 } }
         : {}),
     };
+    const orderBy = {
+      price_asc: { price: 'asc' as const },
+      price_desc: { price: 'desc' as const },
+      deal: { dealScore: 'desc' as const },
+      recent: { listedAt: 'desc' as const },
+    }[q.sort ?? 'recent'];
+
     const [total, items] = await Promise.all([
       this.prisma.vehicle.count({ where }),
       this.prisma.vehicle.findMany({
         where,
-        orderBy: { listedAt: 'desc' },
+        orderBy,
         skip: (page - 1) * limit,
         take: limit,
         include: {

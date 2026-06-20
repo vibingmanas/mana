@@ -14,6 +14,7 @@ import { DmsModule } from './dms/dms.module';
 import { AdminModule } from './admin/admin.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { FinanceModule } from './finance/finance.module';
+import { AlertsModule } from './alerts/alerts.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { FinanceModule } from './finance/finance.module';
     PrismaModule,
     NotificationsModule,
     VerificationModule,
+    AlertsModule,
     DealersModule,
     AuthModule,
     OnboardingModule,
