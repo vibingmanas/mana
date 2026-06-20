@@ -1,9 +1,14 @@
 :root {
-  --bg: #0b1020;
-  --fg: #f5f7fa;
-  --muted: #9aa4b2;
-  --accent: #2dd4bf;
-  --card: #131a2e;
+  /* Mana palette — cream / ink-indigo / warm coral */
+  --bg: #faf6ef;
+  --fg: #1c1b19;
+  --muted: #6b675f;
+  --accent: #ee6352;
+  --accent-press: #d84c3c;
+  --card: #ffffff;
+  --border: #ece6da;
+  --indigo: #1f2747;
+  --tint: #eceef6;
 }
 
 * {
@@ -16,15 +21,27 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  font-family: var(--font-body), 'Hanken Grotesk', system-ui, sans-serif;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
 a {
   color: var(--accent);
+}
+
+::selection {
+  background: var(--indigo);
+  color: var(--bg);
+}
+
+.mana-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.mana-scroll::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 999px;
+}
+.mana-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }

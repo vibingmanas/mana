@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import SiteHeader from '../../components/site-header';
 import BuyerActions from './buyer-actions';
+import { C, display, inr } from '../../../lib/ds';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +23,11 @@ interface Listing {
   city: string | null;
   media: { url: string; type: string }[];
   certification: { tier: string } | null;
-  inspections: { grade: string | null; overallScore: number | null }[];
+  inspections: {
+    overallScore: number | null;
+    grade: string | null;
+    sectionScores: Record<string, number> | null;
+  }[];
   odometerChecks: { fraudRisk: string }[];
   verification: {
     verifiedAt: string | null;
@@ -31,36 +37,45 @@ interface Listing {
     hypothecationActive: boolean | null;
     challanCount: number | null;
   } | null;
-  dealer: { displayName: string | null; city: string | null; verificationTier: string } | null;
+  dealer: {
+    displayName: string | null;
+    city: string | null;
+    state: string | null;
+    verificationTier: string;
+  } | null;
 }
 
 async function getListing(id: string): Promise<Listing | null> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
-  const res = await fetch(`${base}/api/listings/${id}`, { cache: 'no-store' });
-  if (!res.ok) return null;
-  return (await res.json()) as Listing;
+  try {
+    const res = await fetch(`${base}/api/listings/${id}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as Listing;
+  } catch {
+    return null;
+  }
 }
 
-function inr(n: number | null): string {
-  if (!n) return '—';
-  return n >= 100000 ? `₹${(n / 100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
-}
+const CERT: Record<string, string> = {
+  SELF_DECLARED: 'Listed',
+  AI_CHECKED: 'AI-checked',
+  MANA_INSPECTED: 'Mana Inspected',
+  MANA_CERTIFIED: 'Mana Certified',
+};
+const SECTION_LABEL: Record<string, string> = {
+  engine: 'Engine',
+  transmission: 'Transmission',
+  electrical: 'Electricals',
+  suspensionBrakes: 'Suspension & brakes',
+  structureBody: 'Structure & body',
+  interior: 'Interior',
+  tyres: 'Tyres',
+  ac: 'Air-con',
+};
 
-/** EMI on 80% of price at 11.99% for 60 months (indicative). */
-function estimatedEmi(price: number | null): number | null {
-  if (!price) return null;
-  const loan = price * 0.8;
-  const r = 11.99 / 12 / 100;
-  const n = 60;
-  const pow = Math.pow(1 + r, n);
-  return Math.round((loan * r * pow) / (pow - 1));
-}
-
-function dealLabel(score: number | null): { text: string; color: string } | null {
-  if (score == null) return null;
-  if (score >= 0.08) return { text: 'Great deal', color: 'var(--accent)' };
-  if (score >= -0.05) return { text: 'Fair price', color: '#9aa4b2' };
-  return { text: 'Above market', color: '#f59e0b' };
+function emi(loan: number, rate: number, months: number): number {
+  const r = rate / 12 / 100;
+  return Math.round((loan * r * Math.pow(1 + r, months)) / (Math.pow(1 + r, months) - 1));
 }
 
 export default async function ListingDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -71,124 +86,683 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
   const v = car.verification;
   const insp = car.inspections?.[0];
   const odo = car.odometerChecks?.[0];
-  const certLabel: Record<string, string> = {
-    SELF_DECLARED: 'Self-declared',
-    AI_CHECKED: 'AI-checked',
-    MANA_INSPECTED: 'Mana Inspected',
-    MANA_CERTIFIED: 'Mana Certified',
-  };
-  const badges: { label: string; ok: boolean }[] = [
-    { label: 'RC verified', ok: !!v?.verifiedAt },
-    { label: 'No active loan', ok: v?.hypothecationActive === false },
+  const price = car.price ?? 0;
+  const exShowroom = Math.round(price / 1.11);
+  const rto = Math.round(exShowroom * 0.08);
+  const insurance = price - exShowroom - rto;
+  const monthly = price ? emi(Math.round(price * 0.8), 10.5, 60) : 0;
+
+  const dealText =
+    car.dealScore == null
+      ? 'Fair price'
+      : car.dealScore >= 0.08
+        ? 'Great deal'
+        : car.dealScore >= -0.05
+          ? 'Fair price'
+          : 'Above market';
+  const circ = 2 * Math.PI * 56;
+  const score = insp?.overallScore ?? 0;
+
+  const history: { label: string; value: string; ok: boolean }[] = [
     {
-      label: 'Insurance valid',
+      label: 'Owners',
+      value: car.ownersCount ? `${car.ownersCount}` : '—',
+      ok: (car.ownersCount ?? 9) <= 2,
+    },
+    {
+      label: 'RC status',
+      value: v?.rcStatus || (v?.verifiedAt ? 'Active' : '—'),
+      ok: !!v?.verifiedAt,
+    },
+    {
+      label: 'Loan / hypothecation',
+      value: v?.hypothecationActive ? 'Active — to clear' : 'None',
+      ok: v?.hypothecationActive === false,
+    },
+    {
+      label: 'Insurance',
+      value: v?.insuranceValidTill
+        ? `Valid till ${new Date(v.insuranceValidTill).toLocaleDateString('en-IN')}`
+        : '—',
       ok: !!v?.insuranceValidTill && new Date(v.insuranceValidTill) > new Date(),
     },
-    { label: `${v?.challanCount ?? 0} challans`, ok: (v?.challanCount ?? 0) === 0 },
-    { label: `Odometer ${odo?.fraudRisk ?? 'unchecked'}`, ok: (odo?.fraudRisk ?? 'LOW') === 'LOW' },
+    {
+      label: 'PUC',
+      value: v?.pucValidTill
+        ? `Valid till ${new Date(v.pucValidTill).toLocaleDateString('en-IN')}`
+        : '—',
+      ok: !!v?.pucValidTill,
+    },
+    {
+      label: 'Pending challans',
+      value: `${v?.challanCount ?? 0}`,
+      ok: (v?.challanCount ?? 0) === 0,
+    },
+  ];
+  const keyFacts = [
+    { label: 'Year', value: car.manufactureYear ?? '—' },
+    { label: 'Km driven', value: car.odometerKm ? `${(car.odometerKm / 1000).toFixed(0)}k` : '—' },
+    { label: 'Fuel', value: car.fuelType ?? '—' },
+    { label: 'Transmission', value: car.transmission ?? '—' },
   ];
 
   return (
-    <main style={{ maxWidth: 900, margin: '0 auto', padding: '2.5rem 1.5rem' }}>
-      <Link href="/listings" style={{ fontSize: 14 }}>
-        ← Back to listings
-      </Link>
-      <div
+    <div style={{ overflowX: 'hidden' }}>
+      <SiteHeader />
+      <main
         style={{
-          height: 320,
-          borderRadius: 12,
-          marginTop: 16,
-          background: car.media[0]
-            ? `center/cover url(${car.media[0].url})`
-            : 'rgba(255,255,255,0.05)',
-        }}
-      />
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginTop: 20,
+          maxWidth: 1240,
+          margin: '0 auto',
+          padding: 'clamp(18px,3vw,28px) clamp(16px,4vw,40px) 120px',
         }}
       >
-        <h1 style={{ margin: 0 }}>
-          {car.manufactureYear ? `${car.manufactureYear} ` : ''}
-          {car.make} {car.model}
-        </h1>
-        <div style={{ textAlign: 'right' }}>
-          <span style={{ fontSize: 26, fontWeight: 700 }}>{inr(car.price)}</span>
-          {(() => {
-            const d = dealLabel(car.dealScore);
-            return d ? (
-              <div style={{ color: d.color, fontSize: 13, marginTop: 2 }}>
-                {d.text}
+        <Link
+          href="/listings"
+          style={{ color: C.grey, fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
+        >
+          ← Back to results
+        </Link>
+
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 'clamp(22px,3vw,40px)',
+            alignItems: 'flex-start',
+            marginTop: 16,
+          }}
+        >
+          {/* Left */}
+          <div style={{ flex: '999 1 400px', minWidth: 300 }}>
+            <div
+              style={{
+                aspectRatio: '16 / 10',
+                borderRadius: 24,
+                overflow: 'hidden',
+                background: C.tint,
+              }}
+            >
+              {car.media[0] && (
+                <img
+                  src={car.media[0].url}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              )}
+            </div>
+            {car.media.length > 1 && (
+              <div
+                className="mana-scroll"
+                style={{ display: 'flex', gap: 10, marginTop: 12, overflowX: 'auto' }}
+              >
+                {car.media.slice(0, 6).map((m, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: 90,
+                      height: 64,
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      background: C.tint,
+                      flex: '0 0 auto',
+                    }}
+                  >
+                    <img
+                      src={m.url}
+                      alt=""
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: 26 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                {car.certification && (
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: C.tint,
+                      color: C.indigo,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      padding: '7px 13px',
+                      borderRadius: 999,
+                    }}
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={C.indigo}
+                      strokeWidth="2.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 2l8 3v6c0 5-3.5 8.5-8 11-4.5-2.5-8-6-8-11V5z" />
+                      <path d="M9 12l2 2 4-4" />
+                    </svg>
+                    {CERT[car.certification.tier] ?? 'Listed'}
+                    {insp ? ' · 200-point inspection' : ''}
+                  </span>
+                )}
+                <span
+                  style={{
+                    background: C.cream,
+                    border: `1px solid ${C.border}`,
+                    color: C.indigo,
+                    fontWeight: 700,
+                    fontSize: 13,
+                    padding: '7px 13px',
+                    borderRadius: 999,
+                  }}
+                >
+                  Odometer{' '}
+                  {(odo?.fraudRisk ?? 'LOW') === 'LOW' ? 'verified' : odo?.fraudRisk.toLowerCase()}
+                </span>
+              </div>
+              {car.variant && (
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: '.14em',
+                    textTransform: 'uppercase',
+                    color: C.coral,
+                    marginBottom: 10,
+                  }}
+                >
+                  {car.variant} · {car.fuelType} {car.transmission}
+                </div>
+              )}
+              <h1
+                style={{
+                  fontFamily: display,
+                  margin: 0,
+                  fontSize: 'clamp(28px,4vw,42px)',
+                  fontWeight: 800,
+                  letterSpacing: '-.03em',
+                  color: C.text,
+                  lineHeight: 1,
+                }}
+              >
+                {car.manufactureYear} {car.make} {car.model}
+              </h1>
+              <p style={{ margin: '10px 0 0', color: C.grey, fontSize: 16 }}>
+                {car.city}
+                {car.ownersCount
+                  ? ` · ${car.ownersCount} owner${car.ownersCount > 1 ? 's' : ''}`
+                  : ''}
+                {car.odometerKm ? ` · ${car.odometerKm.toLocaleString('en-IN')} km` : ''}
+              </p>
+            </div>
+
+            {/* Key facts */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit,minmax(115px,1fr))',
+                gap: 1,
+                background: C.border,
+                border: `1px solid ${C.border}`,
+                borderRadius: 18,
+                overflow: 'hidden',
+                marginTop: 22,
+              }}
+            >
+              {keyFacts.map((k) => (
+                <div key={k.label} style={{ background: '#fff', padding: '16px 15px' }}>
+                  <div style={{ fontSize: 12, color: C.grey, fontWeight: 600, marginBottom: 5 }}>
+                    {k.label}
+                  </div>
+                  <div
+                    style={{ fontFamily: display, fontSize: 16, fontWeight: 800, color: C.text }}
+                  >
+                    {k.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Inspection */}
+            {insp && (
+              <section style={{ marginTop: 34 }}>
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    letterSpacing: '.14em',
+                    textTransform: 'uppercase',
+                    color: C.grey,
+                    marginBottom: 8,
+                  }}
+                >
+                  Inspection report
+                </div>
+                <h2
+                  style={{
+                    fontFamily: display,
+                    margin: '0 0 4px',
+                    fontSize: 24,
+                    fontWeight: 800,
+                    color: C.indigo,
+                    letterSpacing: '-.02em',
+                  }}
+                >
+                  Exactly what we checked
+                </h2>
+                <p style={{ margin: '0 0 18px', color: C.grey, fontSize: 15 }}>
+                  Scored by a Mana inspection.
+                </p>
+                <div
+                  style={{
+                    background: '#fff',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 22,
+                    padding: 'clamp(20px,3vw,28px)',
+                  }}
+                >
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 26, alignItems: 'center' }}>
+                    <div
+                      style={{ position: 'relative', width: 128, height: 128, flex: '0 0 auto' }}
+                    >
+                      <svg
+                        width="128"
+                        height="128"
+                        viewBox="0 0 128 128"
+                        style={{ transform: 'rotate(-90deg)' }}
+                      >
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          fill="none"
+                          stroke={C.border}
+                          strokeWidth="12"
+                        />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="56"
+                          fill="none"
+                          stroke={C.indigo}
+                          strokeWidth="12"
+                          strokeLinecap="round"
+                          strokeDasharray={`${(score / 100) * circ} ${circ}`}
+                        />
+                      </svg>
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: display,
+                            fontSize: 36,
+                            fontWeight: 800,
+                            color: C.indigo,
+                            lineHeight: 1,
+                          }}
+                        >
+                          {score}
+                        </span>
+                        <span style={{ fontSize: 11.5, color: C.grey, fontWeight: 600 }}>
+                          of 100
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div
+                        style={{
+                          display: 'inline-block',
+                          background: C.tint,
+                          color: C.indigo,
+                          fontWeight: 800,
+                          fontSize: 13,
+                          padding: '6px 13px',
+                          borderRadius: 999,
+                          marginBottom: 10,
+                        }}
+                      >
+                        Grade {insp.grade}
+                      </div>
+                      <p style={{ margin: 0, color: C.text, fontSize: 15, lineHeight: 1.55 }}>
+                        Inspected across engine, transmission, structure, interior, tyres and
+                        electricals — full per-category scores below.
+                      </p>
+                    </div>
+                  </div>
+                  {insp.sectionScores && (
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
+                        gap: '16px 30px',
+                        marginTop: 26,
+                      }}
+                    >
+                      {Object.entries(insp.sectionScores).map(([k, val]) => (
+                        <div key={k}>
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              fontSize: 14,
+                              marginBottom: 7,
+                            }}
+                          >
+                            <span style={{ fontWeight: 700, color: C.text }}>
+                              {SECTION_LABEL[k] ?? k}
+                            </span>
+                            <span style={{ fontWeight: 700, color: C.grey }}>{val}</span>
+                          </div>
+                          <div
+                            style={{
+                              height: 8,
+                              borderRadius: 999,
+                              background: C.border,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <div
+                              style={{
+                                height: '100%',
+                                borderRadius: 999,
+                                background: C.indigo,
+                                width: `${val}%`,
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
+
+            {/* History */}
+            <section style={{ marginTop: 34 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: '.14em',
+                  textTransform: 'uppercase',
+                  color: C.grey,
+                  marginBottom: 8,
+                }}
+              >
+                History &amp; records
+              </div>
+              <h2
+                style={{
+                  fontFamily: display,
+                  margin: '0 0 4px',
+                  fontSize: 24,
+                  fontWeight: 800,
+                  color: C.indigo,
+                  letterSpacing: '-.02em',
+                }}
+              >
+                Verified against VAHAN
+              </h2>
+              <p style={{ margin: '0 0 18px', color: C.grey, fontSize: 15 }}>
+                No surprises after you buy.
+              </p>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))',
+                  gap: 12,
+                }}
+              >
+                {history.map((h) => (
+                  <div
+                    key={h.label}
+                    style={{
+                      background: '#fff',
+                      border: `1px solid ${C.border}`,
+                      borderRadius: 16,
+                      padding: '16px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 13,
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>
+                        {h.label}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: C.grey }}>{h.value}</div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: h.ok ? C.indigo : C.coralDark,
+                        background: h.ok ? C.tint : '#FBE9E6',
+                        padding: '5px 11px',
+                        borderRadius: 999,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {h.ok ? '✓' : '!'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Seller */}
+            <section style={{ marginTop: 30 }}>
+              <div
+                style={{
+                  background: '#fff',
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 20,
+                  padding: 20,
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  gap: 16,
+                }}
+              >
+                <div
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 15,
+                    background: C.indigo,
+                    color: C.cream,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontFamily: display,
+                    fontWeight: 800,
+                    fontSize: 20,
+                  }}
+                >
+                  {(car.dealer?.displayName ?? 'M').charAt(0)}
+                </div>
+                <div style={{ flex: 1, minWidth: 180 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{ fontFamily: display, fontWeight: 800, fontSize: 16, color: C.text }}
+                    >
+                      {car.dealer?.displayName ?? 'Verified dealer'}
+                    </span>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 5,
+                        background: C.tint,
+                        color: C.indigo,
+                        fontWeight: 700,
+                        fontSize: 11.5,
+                        padding: '4px 10px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      Tier {car.dealer?.verificationTier} · Verified dealer
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13.5, color: C.grey, marginTop: 4 }}>
+                    {car.dealer?.city ?? car.city} · KYC &amp; GST verified
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* Right: sticky price card */}
+          <aside
+            style={{ flex: '1 1 330px', maxWidth: 400, minWidth: 300, position: 'sticky', top: 96 }}
+          >
+            <div
+              style={{
+                background: '#fff',
+                border: `1px solid ${C.border}`,
+                borderRadius: 24,
+                padding: 24,
+                boxShadow: '0 16px 50px rgba(31,39,71,.09)',
+              }}
+            >
+              <div style={{ fontSize: 13, color: C.grey, fontWeight: 600 }}>
+                On-road price, all inclusive
+              </div>
+              <div
+                style={{
+                  fontFamily: display,
+                  fontSize: 38,
+                  fontWeight: 800,
+                  color: C.indigo,
+                  letterSpacing: '-.025em',
+                  margin: '3px 0 6px',
+                }}
+              >
+                {inr(price)}
+              </div>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: C.tint,
+                  color: C.indigo,
+                  fontWeight: 700,
+                  fontSize: 12.5,
+                  padding: '6px 12px',
+                  borderRadius: 999,
+                }}
+              >
+                {dealText}
                 {car.valuationFair ? ` · fair ~${inr(car.valuationFair)}` : ''}
               </div>
-            ) : null;
-          })()}
-          {estimatedEmi(car.price) && (
-            <div style={{ color: 'var(--muted)', fontSize: 13, marginTop: 2 }}>
-              EMI from ₹{estimatedEmi(car.price)!.toLocaleString('en-IN')}/mo
+
+              <div
+                style={{
+                  marginTop: 20,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 16,
+                  overflow: 'hidden',
+                }}
+              >
+                <div
+                  style={{
+                    background: C.cream,
+                    padding: '12px 16px',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    color: C.indigo,
+                  }}
+                >
+                  No hidden charges · estimated breakdown
+                </div>
+                {[
+                  ['Ex-showroom', exShowroom],
+                  ['RTO & registration', rto],
+                  ['Insurance', insurance],
+                ].map(([l, val]) => (
+                  <div
+                    key={l as string}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '11px 16px',
+                      fontSize: 13.5,
+                      borderTop: `1px solid ${C.border}`,
+                    }}
+                  >
+                    <span style={{ color: C.grey }}>{l}</span>
+                    <span style={{ fontWeight: 700, color: C.text }}>{inr(val as number)}</span>
+                  </div>
+                ))}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '13px 16px',
+                    fontSize: 14.5,
+                    borderTop: `1.5px solid ${C.border}`,
+                    background: C.cream,
+                  }}
+                >
+                  <span style={{ fontWeight: 800, color: C.indigo }}>On-road total</span>
+                  <span style={{ fontFamily: display, fontWeight: 800, color: C.indigo }}>
+                    {inr(price)}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 18, background: C.cream, borderRadius: 16, padding: 17 }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span
+                    style={{ fontFamily: display, fontWeight: 800, fontSize: 14, color: C.indigo }}
+                  >
+                    EMI from
+                  </span>
+                  <span style={{ fontSize: 12, color: C.grey }}>@ 10.5% · 20% down · 60 mo</span>
+                </div>
+                <div
+                  style={{
+                    fontFamily: display,
+                    fontSize: 30,
+                    fontWeight: 800,
+                    color: C.indigo,
+                    margin: '8px 0 2px',
+                    letterSpacing: '-.02em',
+                  }}
+                >
+                  ₹{monthly.toLocaleString('en-IN')}
+                  <span style={{ fontSize: 15, fontWeight: 700, color: C.grey }}> /mo</span>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <BuyerActions vehicleId={car.id} />
+              </div>
             </div>
-          )}
+          </aside>
         </div>
-      </div>
-      <p style={{ color: 'var(--muted)', marginTop: 4 }}>
-        {car.variant} · {car.fuelType} · {car.transmission} · {car.color}
-        {car.odometerKm ? ` · ${(car.odometerKm / 1000).toFixed(0)}k km` : ''}
-        {car.ownersCount ? ` · ${car.ownersCount} owner(s)` : ''}
-      </p>
-
-      <section
-        style={{ background: 'var(--card)', borderRadius: 12, padding: '1.25rem', marginTop: 20 }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <strong>Trust &amp; verification</strong>
-          {car.certification && (
-            <span
-              style={{
-                padding: '4px 12px',
-                borderRadius: 999,
-                background: 'rgba(45,212,191,0.18)',
-                color: 'var(--accent)',
-                fontSize: 13,
-                fontWeight: 600,
-              }}
-            >
-              {certLabel[car.certification.tier] ?? car.certification.tier}
-              {insp?.grade ? ` · Grade ${insp.grade}` : ''}
-            </span>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-          {badges.map((b) => (
-            <span
-              key={b.label}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                fontSize: 13,
-                background: b.ok ? 'rgba(45,212,191,0.18)' : 'rgba(248,113,113,0.15)',
-                color: b.ok ? 'var(--accent)' : '#f87171',
-              }}
-            >
-              {b.ok ? '✓' : '!'} {b.label}
-            </span>
-          ))}
-        </div>
-      </section>
-
-      <section
-        style={{ background: 'var(--card)', borderRadius: 12, padding: '1.25rem', marginTop: 16 }}
-      >
-        <strong>Dealer</strong>
-        <p style={{ color: 'var(--muted)', margin: '8px 0 0' }}>
-          {car.dealer?.displayName ?? 'Verified dealer'} · {car.dealer?.city ?? car.city} · Tier{' '}
-          {car.dealer?.verificationTier}
-        </p>
-      </section>
-
-      <BuyerActions vehicleId={car.id} />
-    </main>
+      </main>
+    </div>
   );
 }
