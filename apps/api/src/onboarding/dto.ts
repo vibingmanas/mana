@@ -27,6 +27,11 @@ export class AadhaarDto {
   aadhaarNumber!: string;
 }
 
+export class DigiLockerCallbackDto {
+  @IsString() @Length(1, 256) code!: string;
+  @IsString() @Length(1, 512) state!: string;
+}
+
 export class PanDto {
   @IsString()
   @Matches(/^[A-Z]{5}[0-9]{4}[A-Z]$/, { message: 'invalid PAN' })
