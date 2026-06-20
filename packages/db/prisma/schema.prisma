@@ -167,6 +167,19 @@ enum CommissionStatus {
   PAID
 }
 
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  PAID
+  DUE
+  VOID
+}
+
 // ─── Identity ───────────────────────────────────────────────
 
 model User {
@@ -272,6 +285,8 @@ model Dealer {
   appointments        Appointment[]
   financeApplications FinanceApplication[]
   rcTransfers         RcTransferCase[]
+  subscription        Subscription?
+  invoices            Invoice[]
 
   @@index([status])
   @@index([verificationTier])
@@ -478,6 +493,47 @@ model ReferralCommission {
 
   @@index([sourceType])
   @@index([status])
+}
+
+// ─── Monetization (plan 12) ─────────────────────────────────
+
+model SubscriptionPlan {
+  id           String         @id @default(cuid())
+  key          String         @unique // starter | growth | pro
+  name         String
+  priceMonthly Int // INR/month
+  listingLimit Int // max live listings (-1 = unlimited)
+  leadLimit    Int            @default(-1)
+  features     Json?
+  active       Boolean        @default(true)
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String             @id @default(cuid())
+  dealerId           String             @unique
+  dealer             Dealer             @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               SubscriptionPlan   @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  dealerId    String
+  dealer      Dealer        @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  amount      Int
+  gstAmount   Int
+  status      InvoiceStatus @default(PAID)
+  periodStart DateTime
+  periodEnd   DateTime
+  issuedAt    DateTime      @default(now())
+
+  @@index([dealerId])
 }
 
 model DealerAvailability {

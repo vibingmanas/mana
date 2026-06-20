@@ -57,6 +57,11 @@ export default function DealerHome() {
             <NavCard href="/dealer/cars" title="Inventory" desc="Add & manage cars" />
             <NavCard href="/dealer/leads" title="Leads / CRM" desc="Buyer enquiries" />
             <NavCard href="/dealer/appointments" title="Appointments" desc="Test drives & visits" />
+            <NavCard
+              href="/dealer/billing"
+              title="Plans & billing"
+              desc="Subscription & invoices"
+            />
             <NavCard href="/dealer/onboarding" title="Verification" desc="KYC & tier" />
           </nav>
         </>
