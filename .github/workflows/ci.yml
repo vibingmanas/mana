@@ -68,8 +68,9 @@ jobs:
       - name: Apply schema
         run: pnpm --filter @mana/db exec prisma db push --skip-generate
       - name: Boot API
+        working-directory: apps/api
         run: |
-          node --require @swc-node/register apps/api/src/main.ts > /tmp/api.log 2>&1 &
+          node --require @swc-node/register src/main.ts > /tmp/api.log 2>&1 &
           for i in $(seq 1 30); do sleep 2; curl -fsS http://localhost:4000/api/health >/dev/null 2>&1 && break; done
       - name: Run integration e2e
         run: node apps/api/test/integration.e2e.mjs
