@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import SiteHeader from './components/site-header';
-import { C, display, inr } from '../lib/ds';
+import { C, display, inr, eyebrow, btnPrimary, btnGhost } from '../lib/ds';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +71,79 @@ const WHY = [
     num: '04',
     title: 'Paperwork handled',
     body: 'Free RC transfer and ownership paperwork, done for you end to end.',
+  },
+];
+
+const STEPS = [
+  {
+    n: '1',
+    title: 'Browse inspected cars',
+    body: 'Filter by budget, body type or brand. Every listing shows its inspection grade and one on-road price.',
+  },
+  {
+    n: '2',
+    title: 'Book a free test drive',
+    body: 'Pick a slot at the dealer or at home. See the full 200-point report before you commit.',
+  },
+  {
+    n: '3',
+    title: 'Finance & paperwork',
+    body: 'Get an instant EMI plan from our lending partners. We handle RC transfer and insurance.',
+  },
+  {
+    n: '4',
+    title: 'Drive home — or return',
+    body: 'Take delivery with confidence. Not the one? Return within 7 days, full refund.',
+  },
+];
+
+const INSPECT = [
+  { t: 'Engine & transmission', d: 'Cold start, oil leaks, gearbox, clutch wear' },
+  { t: 'Structure & frame', d: 'Accident history, weld lines, repaint, rust' },
+  { t: 'Brakes & suspension', d: 'Pad life, discs, shockers, alignment' },
+  { t: 'Electricals & AC', d: 'Battery, wiring, infotainment, cooling' },
+  { t: 'Tyres & wheels', d: 'Tread depth, age, alloy condition, spare' },
+  { t: 'Documents & odometer', d: 'RC, insurance, challans, tamper check vs VAHAN' },
+];
+
+const QUOTES = [
+  {
+    q: 'I saw the full inspection report before paying a rupee. No dealer ever showed me that. Booked the same evening.',
+    name: 'Priya R.',
+    where: 'Bought a Creta · Hyderabad',
+  },
+  {
+    q: 'Price on the site was the price I paid. RC transfer was done in a week without me visiting the RTO once.',
+    name: 'Arjun M.',
+    where: 'Bought a Nexon · Bengaluru',
+  },
+  {
+    q: 'Sold my old Swift in two days. Three dealers bid, I picked the best offer. Money hit my account next morning.',
+    name: 'Fatima S.',
+    where: 'Sold a Swift · Pune',
+  },
+];
+
+const FAQS = [
+  {
+    q: 'Are the cars really inspected?',
+    a: 'Yes. Every car goes through a 200-point physical inspection by a Mana engineer. The full report — including any defects — is attached to the listing before you buy.',
+  },
+  {
+    q: 'Is the price negotiable?',
+    a: 'We show one transparent on-road price with no hidden delivery charges. What you see is what you pay.',
+  },
+  {
+    q: 'What if I don’t like the car after buying?',
+    a: 'Return it within 7 days for a full refund — no questions asked.',
+  },
+  {
+    q: 'Can you arrange a loan?',
+    a: 'Yes. Get an instant EMI estimate on any listing and apply to our lending partners online. Most approvals come back the same day.',
+  },
+  {
+    q: 'Who handles the RC transfer?',
+    a: 'We do — end to end. Ownership transfer, insurance and paperwork are handled for you, free.',
   },
 ];
 
@@ -572,6 +645,80 @@ export default async function Home() {
         )}
       </section>
 
+      {/* How it works */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: '0 auto',
+          padding: 'clamp(40px,5vw,64px) clamp(16px,4vw,40px) 0',
+        }}
+      >
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ ...eyebrow, marginBottom: 8 }}>How it works</div>
+          <h2
+            style={{
+              fontFamily: display,
+              margin: 0,
+              fontSize: 'clamp(24px,3vw,32px)',
+              fontWeight: 800,
+              letterSpacing: '-.02em',
+              color: C.indigo,
+            }}
+          >
+            From browsing to your driveway in 4 steps
+          </h2>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))',
+            gap: 14,
+          }}
+        >
+          {STEPS.map((s) => (
+            <div
+              key={s.n}
+              style={{
+                background: '#fff',
+                border: `1px solid ${C.border}`,
+                borderRadius: 20,
+                padding: '22px 22px 24px',
+              }}
+            >
+              <div
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 11,
+                  background: C.tint,
+                  color: C.indigo,
+                  fontFamily: display,
+                  fontWeight: 800,
+                  fontSize: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {s.n}
+              </div>
+              <div
+                style={{
+                  fontFamily: display,
+                  fontWeight: 800,
+                  fontSize: 17,
+                  color: C.indigo,
+                  margin: '16px 0 7px',
+                }}
+              >
+                {s.title}
+              </div>
+              <div style={{ fontSize: 14, color: C.grey, lineHeight: 1.55 }}>{s.body}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Why Mana */}
       <section style={{ marginTop: 'clamp(40px,5vw,64px)', background: C.indigo, color: C.cream }}>
         <div
@@ -656,6 +803,422 @@ export default async function Home() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Inspection deep-dive */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: '0 auto',
+          padding: 'clamp(40px,5vw,64px) clamp(16px,4vw,40px) 0',
+        }}
+      >
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ ...eyebrow, color: C.coral, marginBottom: 8 }}>The 200-point check</div>
+          <h2
+            style={{
+              fontFamily: display,
+              margin: 0,
+              fontSize: 'clamp(24px,3vw,32px)',
+              fontWeight: 800,
+              letterSpacing: '-.02em',
+              color: C.indigo,
+              maxWidth: 620,
+            }}
+          >
+            We check what you can’t see in a 10-minute test drive
+          </h2>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))',
+            gap: 14,
+          }}
+        >
+          {INSPECT.map((it) => (
+            <div
+              key={it.t}
+              style={{
+                background: '#fff',
+                border: `1px solid ${C.border}`,
+                borderRadius: 18,
+                padding: '18px 20px',
+                display: 'flex',
+                gap: 13,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span
+                style={{
+                  flex: '0 0 auto',
+                  marginTop: 2,
+                  width: 22,
+                  height: 22,
+                  borderRadius: 7,
+                  background: C.tint,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke={C.indigo}
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12l4 4 10-10" />
+                </svg>
+              </span>
+              <div>
+                <div
+                  style={{ fontFamily: display, fontWeight: 800, fontSize: 15.5, color: C.indigo }}
+                >
+                  {it.t}
+                </div>
+                <div style={{ fontSize: 13.5, color: C.grey, marginTop: 3, lineHeight: 1.5 }}>
+                  {it.d}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Financing band */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: 'clamp(40px,5vw,64px) auto 0',
+          padding: '0 clamp(16px,4vw,40px)',
+        }}
+      >
+        <div
+          style={{
+            background: C.cream2,
+            border: `1px solid ${C.border}`,
+            borderRadius: 26,
+            padding: 'clamp(28px,4vw,48px)',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 'clamp(24px,4vw,48px)',
+          }}
+        >
+          <div style={{ flex: '1.3 1 320px', minWidth: 280 }}>
+            <div style={{ ...eyebrow, marginBottom: 10 }}>Easy finance</div>
+            <h2
+              style={{
+                fontFamily: display,
+                margin: '0 0 12px',
+                fontSize: 'clamp(24px,3.2vw,36px)',
+                fontWeight: 800,
+                letterSpacing: '-.025em',
+                color: C.indigo,
+              }}
+            >
+              Own it from ₹8,000/month
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: C.grey,
+                fontSize: 'clamp(15px,1.7vw,17px)',
+                maxWidth: 460,
+              }}
+            >
+              Instant EMI estimates on every car, loans from leading banks and NBFCs, and approvals
+              that usually land the same day. Down payments from 10%.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
+              <Link href="/listings" style={{ ...btnPrimary, textDecoration: 'none' }}>
+                Browse cars
+              </Link>
+              <Link href="/listings" style={{ ...btnGhost, textDecoration: 'none' }}>
+                Calculate my EMI
+              </Link>
+            </div>
+          </div>
+          <div style={{ flex: '1 1 240px', minWidth: 220, display: 'grid', gap: 12 }}>
+            {[
+              ['10.5%', 'Interest from (p.a.)'],
+              ['Up to 7 yrs', 'Flexible tenure'],
+              ['Same-day', 'Typical approval'],
+            ].map(([v, l]) => (
+              <div
+                key={l}
+                style={{
+                  background: '#fff',
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 16,
+                  padding: '16px 18px',
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                }}
+              >
+                <span
+                  style={{ fontFamily: display, fontWeight: 800, fontSize: 22, color: C.indigo }}
+                >
+                  {v}
+                </span>
+                <span style={{ fontSize: 13, color: C.grey, textAlign: 'right' }}>{l}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Sell your car */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: 'clamp(40px,5vw,64px) auto 0',
+          padding: '0 clamp(16px,4vw,40px)',
+        }}
+      >
+        <div
+          style={{
+            background: C.indigo,
+            borderRadius: 26,
+            padding: 'clamp(28px,4vw,48px)',
+            color: C.cream,
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 'clamp(20px,3vw,40px)',
+          }}
+        >
+          <div style={{ flex: '1 1 360px', minWidth: 280 }}>
+            <div style={{ ...eyebrow, color: '#FFB7AC', marginBottom: 10 }}>Selling instead?</div>
+            <h2
+              style={{
+                fontFamily: display,
+                margin: '0 0 12px',
+                fontSize: 'clamp(26px,3.6vw,42px)',
+                fontWeight: 800,
+                letterSpacing: '-.025em',
+                lineHeight: 1.05,
+              }}
+            >
+              Get 3 dealer offers in 24 hours
+            </h2>
+            <p
+              style={{
+                margin: 0,
+                color: 'rgba(250,246,239,.72)',
+                fontSize: 'clamp(15px,1.7vw,17px)',
+                maxWidth: 460,
+              }}
+            >
+              Tell us about your car, get a free price estimate, and let verified dealers compete.
+              You pick the best offer — money in your account, paperwork on us.
+            </p>
+          </div>
+          <Link
+            href="/sell"
+            style={{
+              ...btnPrimary,
+              background: C.coral,
+              padding: '15px 28px',
+              fontSize: 16,
+              textDecoration: 'none',
+            }}
+          >
+            Sell your car →
+          </Link>
+        </div>
+      </section>
+
+      {/* Testimonials */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: '0 auto',
+          padding: 'clamp(40px,5vw,64px) clamp(16px,4vw,40px) 0',
+        }}
+      >
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ ...eyebrow, marginBottom: 8 }}>★★★★★ 4.8 / 5 from 2,000+ buyers</div>
+          <h2
+            style={{
+              fontFamily: display,
+              margin: 0,
+              fontSize: 'clamp(24px,3vw,32px)',
+              fontWeight: 800,
+              letterSpacing: '-.02em',
+              color: C.indigo,
+            }}
+          >
+            People who stopped worrying about used cars
+          </h2>
+        </div>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(280px,1fr))',
+            gap: 14,
+          }}
+        >
+          {QUOTES.map((q) => (
+            <figure
+              key={q.name}
+              style={{
+                margin: 0,
+                background: '#fff',
+                border: `1px solid ${C.border}`,
+                borderRadius: 20,
+                padding: '24px 24px 22px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 16,
+              }}
+            >
+              <div style={{ color: C.coral, fontSize: 15, letterSpacing: 2 }}>★★★★★</div>
+              <blockquote
+                style={{ margin: 0, color: C.text, fontSize: 16, lineHeight: 1.6, flex: 1 }}
+              >
+                “{q.q}”
+              </blockquote>
+              <figcaption style={{ fontSize: 13.5 }}>
+                <span style={{ fontFamily: display, fontWeight: 800, color: C.indigo }}>
+                  {q.name}
+                </span>
+                <span style={{ color: C.grey }}> · {q.where}</span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section
+        style={{
+          maxWidth: 820,
+          margin: '0 auto',
+          padding: 'clamp(40px,5vw,64px) clamp(16px,4vw,40px) 0',
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: display,
+            margin: '0 0 22px',
+            fontSize: 'clamp(24px,3vw,32px)',
+            fontWeight: 800,
+            letterSpacing: '-.02em',
+            color: C.indigo,
+            textAlign: 'center',
+          }}
+        >
+          Questions, answered
+        </h2>
+        <div style={{ display: 'grid', gap: 10 }}>
+          {FAQS.map((f) => (
+            <details
+              key={f.q}
+              style={{
+                background: '#fff',
+                border: `1px solid ${C.border}`,
+                borderRadius: 16,
+                padding: '16px 20px',
+              }}
+            >
+              <summary
+                style={{
+                  fontFamily: display,
+                  fontWeight: 800,
+                  fontSize: 16,
+                  color: C.indigo,
+                  cursor: 'pointer',
+                  listStyle: 'none',
+                }}
+              >
+                {f.q}
+              </summary>
+              <p style={{ margin: '12px 0 0', color: C.grey, fontSize: 15, lineHeight: 1.6 }}>
+                {f.a}
+              </p>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      {/* Final CTA */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: 'clamp(44px,6vw,76px) auto 0',
+          padding: '0 clamp(16px,4vw,40px)',
+        }}
+      >
+        <div
+          style={{
+            background: C.coral,
+            borderRadius: 26,
+            padding: 'clamp(36px,5vw,64px) clamp(24px,4vw,48px)',
+            textAlign: 'center',
+            color: '#fff',
+          }}
+        >
+          <h2
+            style={{
+              fontFamily: display,
+              margin: '0 auto 14px',
+              fontSize: 'clamp(28px,4vw,48px)',
+              fontWeight: 800,
+              letterSpacing: '-.025em',
+              lineHeight: 1.04,
+              maxWidth: 640,
+            }}
+          >
+            Your next car is waiting — already inspected.
+          </h2>
+          <p
+            style={{
+              margin: '0 auto clamp(24px,3vw,32px)',
+              fontSize: 'clamp(15px,1.8vw,18px)',
+              color: 'rgba(255,255,255,.9)',
+              maxWidth: 480,
+            }}
+          >
+            {total}+ verified cars, one honest price, 7-day returns. Find yours today.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+            <Link
+              href="/listings"
+              style={{
+                ...btnPrimary,
+                background: '#fff',
+                color: C.coralDark,
+                padding: '15px 30px',
+                fontSize: 16,
+                textDecoration: 'none',
+              }}
+            >
+              Browse cars
+            </Link>
+            <Link
+              href="/sell"
+              style={{
+                ...btnPrimary,
+                background: 'transparent',
+                border: '1.5px solid rgba(255,255,255,.6)',
+                padding: '15px 30px',
+                fontSize: 16,
+                textDecoration: 'none',
+              }}
+            >
+              Sell your car
+            </Link>
           </div>
         </div>
       </section>
