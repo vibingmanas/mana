@@ -19,6 +19,7 @@ import { ModerationModule } from './moderation/moderation.module';
 import { PaymentsModule } from './payments/payments.module';
 import { BillingModule } from './billing/billing.module';
 import { SellModule } from './sell/sell.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { SellModule } from './sell/sell.module';
     PrismaModule,
     NotificationsModule,
     VerificationModule,
+    SearchModule,
     ModerationModule,
     AlertsModule,
     PaymentsModule,

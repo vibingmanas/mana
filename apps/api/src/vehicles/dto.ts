@@ -8,6 +8,7 @@ import {
   Length,
   Matches,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { MediaType, VehicleStatus } from '@mana/db';
@@ -56,6 +57,7 @@ export class SetStatusDto {
 }
 
 export class SearchListingsDto {
+  @IsOptional() @IsString() @MaxLength(100) q?: string;
   @IsOptional() @IsString() make?: string;
   @IsOptional() @IsString() model?: string;
   @IsOptional() @IsString() city?: string;

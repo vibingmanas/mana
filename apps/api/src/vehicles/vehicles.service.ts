@@ -8,13 +8,14 @@ import { CheckType, MediaType, VehicleStatus, VerificationTier, type Vehicle } f
 import { PrismaService } from '../prisma/prisma.service';
 import { DealersService } from '../dealers/dealers.service';
 import { VerificationService } from '../verification/verification.service';
-import type { AddMediaDto, CreateVehicleDto, SearchListingsDto, UpdateVehicleDto } from './dto';
+import type { AddMediaDto, CreateVehicleDto, UpdateVehicleDto } from './dto';
 import { publishBlocker } from './rules';
 import { estimateValuation, dealScore } from './valuation';
 import { assessOdometer } from '../inspections/odometer';
 import { AlertsService } from '../alerts/alerts.service';
 import { BillingService } from '../billing/billing.service';
 import { listingLimitReached } from '../billing/billing-rules';
+import { SearchService } from '../search/search.service';
 
 function parseDate(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
@@ -30,6 +31,7 @@ export class VehiclesService {
     private readonly verification: VerificationService,
     private readonly alerts: AlertsService,
     private readonly billing: BillingService,
+    private readonly search: SearchService,
   ) {}
 
   private async ownedVehicle(userId: string, vehicleId: string): Promise<Vehicle> {
@@ -217,6 +219,7 @@ export class VehiclesService {
         dealScore: vehicle.price ? dealScore(vehicle.price, band.fair) : null,
       },
     });
+    await this.search.syncVehicle(vehicleId);
     return this.getMine(userId, vehicleId);
   }
 
@@ -224,48 +227,14 @@ export class VehiclesService {
     await this.ownedVehicle(userId, vehicleId);
     const data: { status: VehicleStatus; soldAt?: Date } = { status };
     if (status === VehicleStatus.SOLD) data.soldAt = new Date();
-    return this.prisma.vehicle.update({ where: { id: vehicleId }, data });
+    const updated = await this.prisma.vehicle.update({ where: { id: vehicleId }, data });
+    await this.search.syncVehicle(vehicleId);
+    return updated;
   }
 
   // ─── Public listings ──────────────────────────────────────
-  async search(q: SearchListingsDto) {
-    const page = q.page ?? 1;
-    const limit = q.limit ?? 20;
-    const where = {
-      status: VehicleStatus.LIVE,
-      ...(q.make ? { make: { contains: q.make, mode: 'insensitive' as const } } : {}),
-      ...(q.model ? { model: { contains: q.model, mode: 'insensitive' as const } } : {}),
-      ...(q.city ? { city: { contains: q.city, mode: 'insensitive' as const } } : {}),
-      ...(q.fuelType ? { fuelType: q.fuelType } : {}),
-      ...(q.minPrice || q.maxPrice
-        ? { price: { gte: q.minPrice ?? 0, lte: q.maxPrice ?? 100_000_000 } }
-        : {}),
-    };
-    const orderBy = {
-      price_asc: { price: 'asc' as const },
-      price_desc: { price: 'desc' as const },
-      deal: { dealScore: 'desc' as const },
-      recent: { listedAt: 'desc' as const },
-    }[q.sort ?? 'recent'];
-
-    const [total, items] = await Promise.all([
-      this.prisma.vehicle.count({ where }),
-      this.prisma.vehicle.findMany({
-        where,
-        orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
-        include: {
-          media: { orderBy: { position: 'asc' }, take: 1 },
-          verification: true,
-          certification: true,
-          inspections: { orderBy: { createdAt: 'desc' }, take: 1 },
-          dealer: { select: { displayName: true, city: true, verificationTier: true } },
-        },
-      }),
-    ]);
-    return { total, page, limit, items };
-  }
+  // Browse/search now lives in SearchService (OpenSearch when configured,
+  // else Postgres). VehiclesService keeps the listing-detail read below.
 
   async getListing(id: string) {
     const vehicle = await this.prisma.vehicle.findUnique({

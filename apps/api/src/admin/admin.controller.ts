@@ -24,6 +24,7 @@ import { BlocklistService } from '../moderation/blocklist.service';
 import { FeatureFlagsService } from '../moderation/feature-flags.service';
 import { DisputesService } from '../moderation/disputes.service';
 import { AuthService } from '../auth/auth.service';
+import { SearchService } from '../search/search.service';
 
 class BlocklistAddDto {
   @IsIn(['phone', 'pan', 'gstin', 'reg_number']) kind!: string;
@@ -50,6 +51,7 @@ export class AdminController {
     private readonly flags: FeatureFlagsService,
     private readonly disputes: DisputesService,
     private readonly auth: AuthService,
+    private readonly search: SearchService,
   ) {}
 
   @Get('dashboard')
@@ -186,6 +188,22 @@ export class AdminController {
       ip,
     });
     return row;
+  }
+
+  // ── Search index ──
+  @Post('search/reindex')
+  @HttpCode(200)
+  async reindex(@CurrentUser() user: AuthUser, @Ip() ip: string) {
+    const res = await this.search.reindexAll();
+    await this.audit.record({
+      actorUserId: user.userId,
+      action: 'search.reindex',
+      entityType: 'search',
+      entityId: 'listings',
+      after: res,
+      ip,
+    });
+    return res;
   }
 
   // ── Impersonation (time-boxed, audited) ──

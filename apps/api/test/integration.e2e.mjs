@@ -96,6 +96,13 @@ ok(
 // public listing visible
 ok((await call(`/listings/${vid}`)).status === 200, 'public listing visible');
 
+// search (OpenSearch when configured, else Postgres) — free-text + filter
+const searchRes = await call(`/listings?q=Swift&sort=recent`).then((r) => r.json);
+ok(
+  searchRes.items.some((i) => i.id === vid) && !!searchRes.backend,
+  `search returns the listing (backend ${searchRes.backend})`,
+);
+
 // buyer lead
 const bt = await authAs('BUYER');
 ok(
