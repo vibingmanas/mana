@@ -3,12 +3,37 @@ import { VehicleStatus } from '@mana/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { dealScore } from '../vehicles/valuation';
 import { savedSearchMatches, type SearchQuery } from './match';
+import { EmailService } from '../notifications/email.service';
 
 @Injectable()
 export class AlertsService {
   private readonly logger = new Logger(AlertsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly email: EmailService,
+  ) {}
+
+  /** Create an in-app notification and fan out to email (best-effort). WhatsApp/push
+   *  channels reuse the same hook once their providers are configured (key-ready). */
+  private async notify(
+    userId: string,
+    type: string,
+    title: string,
+    body: string,
+    vehicleId: string,
+  ) {
+    await this.prisma.notification.create({ data: { userId, type, title, body, vehicleId } });
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { email: true },
+      });
+      if (user?.email) await this.email.sendAlert(user.email, title, body);
+    } catch (e) {
+      this.logger.warn(`Alert email failed for ${userId}: ${(e as Error).message}`);
+    }
+  }
 
   /** Record price history and, on a drop for a LIVE car, notify interested buyers. */
   async onPriceChange(vehicleId: string, oldPrice: number | null, newPrice: number) {
@@ -40,15 +65,13 @@ export class AlertsService {
       const userId = w.buyer.userId;
       if (notifiedUserIds.has(userId)) continue;
       notifiedUserIds.add(userId);
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: 'price_drop',
-          title: 'Price dropped on a saved car',
-          body: `${label} is now ₹${newPrice.toLocaleString('en-IN')} (was ₹${oldPrice!.toLocaleString('en-IN')}).`,
-          vehicleId,
-        },
-      });
+      await this.notify(
+        userId,
+        'price_drop',
+        'Price dropped on a saved car',
+        `${label} is now ₹${newPrice.toLocaleString('en-IN')} (was ₹${oldPrice!.toLocaleString('en-IN')}).`,
+        vehicleId,
+      );
     }
 
     // 2. Saved-search matches.
@@ -60,15 +83,13 @@ export class AlertsService {
       if (notifiedUserIds.has(userId)) continue;
       if (!savedSearchMatches(s.query as SearchQuery, vehicle)) continue;
       notifiedUserIds.add(userId);
-      await this.prisma.notification.create({
-        data: {
-          userId,
-          type: 'saved_search_match',
-          title: 'A car matching your search dropped in price',
-          body: `${label} is now ₹${newPrice.toLocaleString('en-IN')}.`,
-          vehicleId,
-        },
-      });
+      await this.notify(
+        userId,
+        'saved_search_match',
+        'A car matching your search dropped in price',
+        `${label} is now ₹${newPrice.toLocaleString('en-IN')}.`,
+        vehicleId,
+      );
     }
     this.logger.log(`Price drop on ${vehicleId}: notified ${notifiedUserIds.size} buyer(s)`);
   }
