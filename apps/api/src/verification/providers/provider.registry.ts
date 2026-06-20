@@ -19,6 +19,13 @@ export class ProviderRegistry {
     return provider;
   }
 
+  /** All providers that support a check type, in priority order (live before mock). */
+  resolveAll(checkType: CheckType): VerificationProvider[] {
+    const list = this.providers.filter((p) => p.supports(checkType));
+    if (list.length === 0) throw new Error(`No verification provider for check type ${checkType}`);
+    return list;
+  }
+
   list(): string[] {
     return this.providers.map((p) => p.name);
   }

@@ -134,17 +134,22 @@ export class VerificationService {
     input: Record<string, unknown>,
     attempts = 2,
   ): Promise<NormalizedResult> {
-    const provider = this.registry.resolve(checkType);
-    let lastErr: unknown;
-    for (let i = 0; i < attempts; i++) {
-      try {
-        return await provider.verify(checkType, input);
-      } catch (err) {
-        lastErr = err;
-        this.logger.warn(`Provider ${provider.name} failed for ${checkType} (attempt ${i + 1})`);
+    // Try each supporting provider in priority order (live → mock); within a
+    // provider, retry transient errors. Fall through to the next on a thrown error.
+    const providers = this.registry.resolveAll(checkType);
+    let last: NormalizedResult | null = null;
+    for (const provider of providers) {
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const res = await provider.verify(checkType, input);
+          if (res.status !== 'FAILED') return res;
+          last = res;
+          break; // a clean FAILED isn't retried; try the next provider
+        } catch (err) {
+          this.logger.warn(`Provider ${provider.name} threw for ${checkType} (attempt ${i + 1})`);
+        }
       }
     }
-    this.logger.error(`Provider ${provider.name} exhausted retries for ${checkType}`, lastErr);
-    return { status: 'MANUAL_REVIEW', fields: {}, provider: provider.name };
+    return last ?? { status: 'MANUAL_REVIEW', fields: {}, provider: providers[0]?.name ?? 'none' };
   }
 }
