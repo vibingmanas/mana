@@ -14,6 +14,7 @@ import { OnboardingService, type ConsentMeta } from './onboarding.service';
 import {
   AadhaarDto,
   BankDto,
+  DigiLockerCallbackDto,
   EmailOtpRequestDto,
   EmailVerifyDto,
   GstDto,
@@ -72,6 +73,23 @@ export class OnboardingController {
     @Headers('user-agent') ua: string,
   ) {
     return this.onboarding.verifyAadhaar(user.userId, dto.aadhaarNumber, this.meta(ip, ua));
+  }
+
+  @Post('aadhaar/digilocker/initiate')
+  @HttpCode(200)
+  digilockerInitiate(@CurrentUser() user: AuthUser) {
+    return this.onboarding.digilockerInitiate(user.userId);
+  }
+
+  @Post('aadhaar/digilocker/callback')
+  @HttpCode(200)
+  digilockerCallback(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: DigiLockerCallbackDto,
+    @Ip() ip: string,
+    @Headers('user-agent') ua: string,
+  ) {
+    return this.onboarding.digilockerCallback(user.userId, dto.code, dto.state, this.meta(ip, ua));
   }
 
   @Post('pan')

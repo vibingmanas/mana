@@ -3,6 +3,7 @@ import { VerificationService } from './verification.service';
 import { VerificationController } from './verification.controller';
 import { ConsentService } from './consent.service';
 import { VaultService } from './vault.service';
+import { DigiLockerService } from './digilocker.service';
 import { ProviderRegistry } from './providers/provider.registry';
 import { MockKycProvider } from './providers/mock-kyc.provider';
 import { SurepassKycProvider } from './providers/surepass-kyc.provider';
@@ -20,6 +21,7 @@ import { VERIFICATION_PROVIDERS } from './providers/types';
     VerificationService,
     ConsentService,
     VaultService,
+    DigiLockerService,
     ProviderRegistry,
     MockKycProvider,
     SurepassKycProvider,
@@ -30,6 +32,6 @@ import { VERIFICATION_PROVIDERS } from './providers/types';
       inject: [SurepassKycProvider, MockKycProvider],
     },
   ],
-  exports: [VerificationService, VaultService, ConsentService],
+  exports: [VerificationService, VaultService, ConsentService, DigiLockerService],
 })
 export class VerificationModule {}

@@ -9,6 +9,7 @@ import type { Dealer, DealerKYC } from '@mana/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { OtpService } from '../auth/otp.service';
 import { VerificationService } from '../verification/verification.service';
+import { DigiLockerService } from '../verification/digilocker.service';
 import { computeTier, completedSteps, nextStep } from './tier';
 import type { UpdateProfileDto } from './dto';
 
@@ -23,6 +24,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly otp: OtpService,
     private readonly verification: VerificationService,
+    private readonly digilocker: DigiLockerService,
   ) {}
 
   private async getDealerOrThrow(userId: string): Promise<Dealer & { kyc: DealerKYC | null }> {
@@ -95,6 +97,25 @@ export class OnboardingService {
       },
     });
     return this.sync(dealer.id);
+  }
+
+  /** Step 1: build the DigiLocker consent URL the dealer is redirected to. */
+  async digilockerInitiate(userId: string) {
+    await this.getDealerOrThrow(userId);
+    const state = this.digilocker.signState(userId);
+    return {
+      consentUrl: this.digilocker.buildAuthUrl(state),
+      state,
+      live: this.digilocker.isLive(),
+    };
+  }
+
+  /** Step 2: callback — verify state, fetch e-Aadhaar, run the standard check. */
+  async digilockerCallback(userId: string, code: string, state: string, meta: ConsentMeta) {
+    await this.getDealerOrThrow(userId);
+    this.digilocker.verifyState(state, userId);
+    const identity = await this.digilocker.exchangeAndFetch(code);
+    return this.verifyAadhaar(userId, identity.aadhaarNumber, meta);
   }
 
   async verifyPan(userId: string, pan: string, meta: ConsentMeta) {

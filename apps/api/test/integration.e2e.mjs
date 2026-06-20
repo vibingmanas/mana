@@ -318,5 +318,42 @@ ok(
   'syndication feed lists live cars on enabled channels',
 );
 
+// Aadhaar via DigiLocker consent/redirect (mock when DIGILOCKER_CLIENT_ID unset)
+const dg = await authAs('DEALER_OWNER');
+await call('/onboarding/start', { method: 'POST', body: {}, token: dg });
+const dgEc = (
+  await call('/onboarding/email/request-otp', {
+    method: 'POST',
+    body: { email: 'dg@m.dev' },
+    token: dg,
+  })
+).json.devCode;
+await call('/onboarding/email/verify', {
+  method: 'POST',
+  body: { email: 'dg@m.dev', code: dgEc },
+  token: dg,
+});
+const init = await call('/onboarding/aadhaar/digilocker/initiate', { method: 'POST', token: dg });
+ok(
+  init.json.consentUrl.includes('state=') && init.json.live === false,
+  'digilocker initiate returns a (mock) consent url',
+);
+const consentUrl = new URL(init.json.consentUrl);
+const cb = await call('/onboarding/aadhaar/digilocker/callback', {
+  method: 'POST',
+  body: { code: consentUrl.searchParams.get('code'), state: init.json.state },
+  token: dg,
+});
+ok(cb.json.completedSteps?.includes('aadhaar'), 'digilocker callback verified Aadhaar');
+
+const other = await authAs('DEALER_OWNER');
+await call('/onboarding/start', { method: 'POST', body: {}, token: other });
+const csrf = await call('/onboarding/aadhaar/digilocker/callback', {
+  method: 'POST',
+  body: { code: 'mock-x', state: init.json.state },
+  token: other,
+});
+ok(csrf.status === 400, 'digilocker rejects a state bound to another user (CSRF)');
+
 console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILURE(S)'}`);
 process.exit(failures === 0 ? 0 : 1);
