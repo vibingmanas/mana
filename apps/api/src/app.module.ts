@@ -11,6 +11,7 @@ import { VehiclesModule } from './vehicles/vehicles.module';
 import { BuyersModule } from './buyers/buyers.module';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { DmsModule } from './dms/dms.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { DmsModule } from './dms/dms.module';
     BuyersModule,
     AppointmentsModule,
     DmsModule,
+    AdminModule,
     HealthModule,
   ],
 })
