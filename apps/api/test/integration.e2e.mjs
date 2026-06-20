@@ -268,5 +268,48 @@ ok(
   'buyer denied inspector worklist (403)',
 );
 
+// dealer DMS: bulk upload, staff RBAC, syndication
+const csv =
+  'regNumber,make,model,manufactureYear,odometerKm,price\nMH12BULK01,Maruti,Baleno,2021,30000,650000\nMH12BULK02,Tata,Nexon,2022,15000,900000';
+const bulk = await call('/dealer/inventory/bulk-csv', { method: 'POST', body: { csv }, token: dt });
+ok(bulk.json.created === 2 && bulk.json.skipped === 0, 'bulk CSV upload created 2 draft vehicles');
+const reupload = await call('/dealer/inventory/bulk-csv', {
+  method: 'POST',
+  body: { csv },
+  token: dt,
+});
+ok(
+  reupload.json.created === 0 && reupload.json.skipped === 2,
+  'bulk upload dedupes existing reg numbers',
+);
+
+const staffPhone = '+919100' + Math.floor(Math.random() * 900000 + 100000);
+const added = await call('/dealer/staff', {
+  method: 'POST',
+  body: { phone: staffPhone, role: 'SALES' },
+  token: dt,
+});
+ok(added.status === 201, 'owner added a sales staff member');
+const staffCode = (await call('/auth/otp/request', { method: 'POST', body: { phone: staffPhone } }))
+  .json.devCode;
+const st = (
+  await call('/auth/otp/verify', { method: 'POST', body: { phone: staffPhone, code: staffCode } })
+).json.accessToken;
+ok(
+  (await call('/dealer/dashboard', { token: st })).json.dealer?.id === added.json.dealerId,
+  'staff sees the owner dealer dashboard',
+);
+ok(
+  (await call('/dealer/staff', { token: st })).status === 403,
+  'sales staff denied staff roster (owner-only)',
+);
+
+await call('/dealer/syndication/OLX', { method: 'PUT', body: { enabled: true }, token: dt });
+const feed = await call('/dealer/syndication/feed', { token: dt }).then((r) => r.json);
+ok(
+  feed.channels.includes('OLX') && feed.listings.some((l) => l.id === vid),
+  'syndication feed lists live cars on enabled channels',
+);
+
 console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILURE(S)'}`);
 process.exit(failures === 0 ? 0 : 1);
