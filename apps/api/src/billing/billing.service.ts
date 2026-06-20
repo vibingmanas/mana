@@ -3,6 +3,7 @@ import { InvoiceStatus, Prisma, SubscriptionStatus } from '@mana/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { DealersService } from '../dealers/dealers.service';
 import { DEFAULT_PLANS, STARTER_LISTING_LIMIT, gstBreakup } from './billing-rules';
+import { PaymentsService } from '../payments/payments.service';
 
 const PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -11,6 +12,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dealers: DealersService,
+    private readonly payments: PaymentsService,
   ) {}
 
   /** Idempotently seed the default plans (so the feature works without a manual seed). */
@@ -61,32 +63,58 @@ export class BillingService {
     const plan = await this.prisma.subscriptionPlan.findUnique({ where: { key: planKey } });
     if (!plan) throw new NotFoundException('Plan not found');
 
+    // Paid plan with a live gateway: create a payment link; activation happens
+    // on the Razorpay webhook (not here).
+    if (plan.priceMonthly > 0 && this.payments.isLive) {
+      const { total } = gstBreakup(plan.priceMonthly);
+      const link = await this.payments.createSubscriptionPayment(
+        `${dealer.id}:${plan.key}`,
+        total,
+        `Mana ${plan.name} plan — monthly`,
+      );
+      await this.prisma.subscription.upsert({
+        where: { dealerId: dealer.id },
+        update: { planId: plan.id, status: SubscriptionStatus.PAST_DUE },
+        create: {
+          dealerId: dealer.id,
+          planId: plan.id,
+          status: SubscriptionStatus.PAST_DUE,
+          currentPeriodEnd: new Date(Date.now() + PERIOD_MS),
+        },
+      });
+      return { pending: true, checkoutUrl: link.checkoutUrl };
+    }
+
+    // Free plan, or mock gateway: activate immediately.
+    return this.activate(dealer.id, plan.id, plan.priceMonthly);
+  }
+
+  /** Activate a subscription period + issue a GST invoice for paid plans. */
+  private async activate(dealerId: string, planId: string, priceMonthly: number) {
     const now = new Date();
     const end = new Date(now.getTime() + PERIOD_MS);
     const sub = await this.prisma.subscription.upsert({
-      where: { dealerId: dealer.id },
+      where: { dealerId },
       update: {
-        planId: plan.id,
+        planId,
         status: SubscriptionStatus.ACTIVE,
         currentPeriodStart: now,
         currentPeriodEnd: end,
       },
       create: {
-        dealerId: dealer.id,
-        planId: plan.id,
+        dealerId,
+        planId,
         status: SubscriptionStatus.ACTIVE,
         currentPeriodStart: now,
         currentPeriodEnd: end,
       },
       include: { plan: true },
     });
-
-    // Mock payment: paid plans generate a GST invoice immediately.
-    if (plan.priceMonthly > 0) {
-      const { base, gst } = gstBreakup(plan.priceMonthly);
+    if (priceMonthly > 0) {
+      const { base, gst } = gstBreakup(priceMonthly);
       await this.prisma.invoice.create({
         data: {
-          dealerId: dealer.id,
+          dealerId,
           amount: base,
           gstAmount: gst,
           status: InvoiceStatus.PAID,
@@ -96,6 +124,15 @@ export class BillingService {
       });
     }
     return sub;
+  }
+
+  /** Called by the Razorpay webhook when a payment link is paid. ref = "dealerId:planKey". */
+  async activateFromPaymentRef(ref: string): Promise<void> {
+    const [dealerId, planKey] = ref.split(':');
+    if (!dealerId || !planKey) return;
+    const plan = await this.prisma.subscriptionPlan.findUnique({ where: { key: planKey } });
+    if (!plan) return;
+    await this.activate(dealerId, plan.id, plan.priceMonthly);
   }
 
   async mySubscription(userId: string) {
