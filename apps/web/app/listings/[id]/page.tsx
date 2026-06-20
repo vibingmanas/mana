@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import BuyerActions from './buyer-actions';
 
 interface Listing {
   id: string;
@@ -13,6 +14,8 @@ interface Listing {
   transmission: string | null;
   color: string | null;
   price: number | null;
+  valuationFair: number | null;
+  dealScore: number | null;
   city: string | null;
   media: { url: string; type: string }[];
   verification: {
@@ -36,6 +39,13 @@ async function getListing(id: string): Promise<Listing | null> {
 function inr(n: number | null): string {
   if (!n) return '—';
   return n >= 100000 ? `₹${(n / 100000).toFixed(2)} L` : `₹${n.toLocaleString('en-IN')}`;
+}
+
+function dealLabel(score: number | null): { text: string; color: string } | null {
+  if (score == null) return null;
+  if (score >= 0.08) return { text: 'Great deal', color: 'var(--accent)' };
+  if (score >= -0.05) return { text: 'Fair price', color: '#9aa4b2' };
+  return { text: 'Above market', color: '#f59e0b' };
 }
 
 export default async function ListingDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -81,7 +91,18 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
           {car.manufactureYear ? `${car.manufactureYear} ` : ''}
           {car.make} {car.model}
         </h1>
-        <span style={{ fontSize: 26, fontWeight: 700 }}>{inr(car.price)}</span>
+        <div style={{ textAlign: 'right' }}>
+          <span style={{ fontSize: 26, fontWeight: 700 }}>{inr(car.price)}</span>
+          {(() => {
+            const d = dealLabel(car.dealScore);
+            return d ? (
+              <div style={{ color: d.color, fontSize: 13, marginTop: 2 }}>
+                {d.text}
+                {car.valuationFair ? ` · fair ~${inr(car.valuationFair)}` : ''}
+              </div>
+            ) : null;
+          })()}
+        </div>
       </div>
       <p style={{ color: 'var(--muted)', marginTop: 4 }}>
         {car.variant} · {car.fuelType} · {car.transmission} · {car.color}
@@ -120,6 +141,8 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
           {car.dealer?.verificationTier}
         </p>
       </section>
+
+      <BuyerActions vehicleId={car.id} />
     </main>
   );
 }

@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
 import { DealersModule } from './dealers/dealers.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
+import { BuyersModule } from './buyers/buyers.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { VehiclesModule } from './vehicles/vehicles.module';
     AuthModule,
     OnboardingModule,
     VehiclesModule,
+    BuyersModule,
     HealthModule,
   ],
 })
