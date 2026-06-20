@@ -5,6 +5,7 @@
 databases:
   - name: mana-postgres
     plan: free
+    region: singapore # must match the services' region for internal connectivity
     databaseName: mana
     user: mana
 
@@ -12,6 +13,7 @@ services:
   - type: redis
     name: mana-redis
     plan: free
+    region: singapore
     ipAllowList: [] # internal only
 
   - type: web
