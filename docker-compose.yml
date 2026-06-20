@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: mana-postgres
+    environment:
+      POSTGRES_USER: mana
+      POSTGRES_PASSWORD: mana
+      POSTGRES_DB: mana
+    ports:
+      - "5433:5432"
+    volumes:
+      - mana-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mana"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mana-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - mana-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  mana-pgdata:
+  mana-redisdata:

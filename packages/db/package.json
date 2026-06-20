@@ -1,0 +1,37 @@
+{
+  "name": "@mana/db",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "dotenv -e ../../.env -- prisma migrate dev",
+    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "push": "dotenv -e ../../.env -- prisma db push",
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "studio": "dotenv -e ../../.env -- prisma studio",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "echo \"(db) no lint\" && exit 0",
+    "test": "echo \"(db) no tests\" && exit 0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
