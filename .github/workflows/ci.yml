@@ -34,6 +34,50 @@ jobs:
       - name: Test
         run: pnpm test
 
+  # End-to-end integration test against a real Postgres + the running API.
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mana
+          POSTGRES_PASSWORD: mana
+          POSTGRES_DB: mana
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mana" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://mana:mana@localhost:5432/mana?schema=public
+      JWT_SECRET: ci-test-secret
+      NODE_ENV: development
+      PORT: '4000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm db:generate
+      - name: Apply schema
+        run: pnpm --filter @mana/db exec prisma db push --skip-generate
+      - name: Boot API
+        working-directory: apps/api
+        run: |
+          node --require @swc-node/register src/main.ts > /tmp/api.log 2>&1 &
+          for i in $(seq 1 30); do sleep 2; curl -fsS http://localhost:4000/api/health >/dev/null 2>&1 && break; done
+      - name: Run integration e2e
+        run: node apps/api/test/integration.e2e.mjs
+      - name: API logs on failure
+        if: failure()
+        run: tail -50 /tmp/api.log || true
+
   # Deploy on merge to main, only after the build/test job passes.
   # Uses per-service Render Deploy Hooks (these deploy the latest commit;
   # the blueprint *sync* hook only re-applies render.yaml and does NOT deploy code).
