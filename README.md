@@ -94,7 +94,7 @@ CI/CD: every PR runs build + tests; **merging to `main` auto-deploys** via the `
    - `mana-web` → set env var `NEXT_PUBLIC_API_URL` = the API URL (e.g. `https://mana-api.onrender.com`).
    - `mana-api` → set env var `CORS_ORIGINS` = the web URL (e.g. `https://mana-web.onrender.com`).
    - Trigger a deploy of both (web must rebuild — `NEXT_PUBLIC_*` is baked at build time).
-3. **Add the GitHub secret** so CD can trigger deploys: copy the Blueprint **sync hook** (Render → Blueprint → *Settings → Sync Hook*) and add it in GitHub *Settings → Secrets → Actions* as `RENDER_SYNC_HOOK`. One hook re-syncs `render.yaml` and deploys every service. (Until it exists, the deploy job no-ops gracefully.)
+3. **Add the GitHub secrets** so CD can deploy on merge: in **each** service (`mana-api`, `mana-web`) → *Settings → Deploy Hook*, copy the URL (`https://api.render.com/deploy/srv-…`), then in GitHub *Settings → Secrets → Actions* add `RENDER_DEPLOY_HOOK_API` and `RENDER_DEPLOY_HOOK_WEB`. (Use the per-service **Deploy** Hook, not the Blueprint *Sync* hook — sync only re-applies `render.yaml`, it doesn't deploy code. Until the secrets exist, the deploy job no-ops gracefully.)
 4. **Seed an admin** (optional) — Render `mana-api` → *Shell*: `cd packages/db && pnpm db:seed` (seeds `+919000000001`).
 
 After that, the web app is public at the `mana-web` URL, the API migrations run automatically on each deploy (`prisma migrate deploy` baseline in `packages/db/prisma/migrations`), and every merge to `main` ships the latest code.
