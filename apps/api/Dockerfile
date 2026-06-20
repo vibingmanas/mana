@@ -15,5 +15,7 @@ RUN pnpm --filter @mana/db generate
 RUN pnpm --filter @mana/api build
 
 ENV NODE_ENV=production
-# Apply migrations, then start the compiled server. Render injects PORT.
-CMD ["sh", "-lc", "cd packages/db && pnpm exec prisma migrate deploy && cd /app && node apps/api/dist/main.js"]
+# Sync the schema (this project manages schema with `db push`, like CI + local;
+# changes are additive so this is non-destructive), then start the server.
+# Render injects PORT.
+CMD ["sh", "-lc", "cd packages/db && pnpm exec prisma db push --skip-generate && cd /app && node apps/api/dist/main.js"]
