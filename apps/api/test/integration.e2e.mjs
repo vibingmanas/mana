@@ -152,5 +152,50 @@ ok(
   'seller accepted an offer',
 );
 
+// admin ops: feature flag, blocklist, dispute, impersonation
+const adminCode = (
+  await call('/auth/otp/request', { method: 'POST', body: { phone: '+919000000001' } })
+).json.devCode;
+const at = (
+  await call('/auth/otp/verify', {
+    method: 'POST',
+    body: { phone: '+919000000001', code: adminCode },
+  })
+).json.accessToken;
+ok(!!at, 'admin authenticated (seeded)');
+
+await call('/admin/feature-flags/sell_flow', { method: 'PUT', body: { enabled: true }, token: at });
+ok((await call('/feature-flags')).json.sell_flow === true, 'feature flag set + exposed publicly');
+
+const blockPhone = '+919000000002';
+await call('/admin/blocklist', {
+  method: 'POST',
+  body: { kind: 'phone', value: blockPhone, reason: 'fraud' },
+  token: at,
+});
+ok(
+  (await call('/auth/otp/request', { method: 'POST', body: { phone: blockPhone } })).status === 403,
+  'blocked phone rejected at OTP (403)',
+);
+
+const disp = await call('/disputes', {
+  method: 'POST',
+  body: { type: 'listing', message: 'wrong photos' },
+  token: bt,
+});
+ok(disp.status === 201, 'buyer raised a dispute');
+const resolved = await call(`/admin/disputes/${disp.json.id}/resolve`, {
+  method: 'POST',
+  body: { status: 'RESOLVED', resolution: 'updated' },
+  token: at,
+});
+ok(resolved.json.status === 'RESOLVED', 'admin resolved the dispute');
+
+const imp = await call(
+  `/admin/impersonate/${(await call('/auth/me', { token: dt })).json.userId}`,
+  { method: 'POST', token: at },
+);
+ok(!!imp.json.accessToken, 'admin minted an impersonation token');
+
 console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILURE(S)'}`);
 process.exit(failures === 0 ? 0 : 1);

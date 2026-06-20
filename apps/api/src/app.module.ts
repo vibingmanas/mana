@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { FinanceModule } from './finance/finance.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { ModerationModule } from './moderation/moderation.module';
 import { PaymentsModule } from './payments/payments.module';
 import { BillingModule } from './billing/billing.module';
 import { SellModule } from './sell/sell.module';
@@ -25,6 +26,7 @@ import { SellModule } from './sell/sell.module';
     PrismaModule,
     NotificationsModule,
     VerificationModule,
+    ModerationModule,
     AlertsModule,
     PaymentsModule,
     DealersModule,

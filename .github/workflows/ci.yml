@@ -67,6 +67,8 @@ jobs:
         run: pnpm db:generate
       - name: Apply schema
         run: pnpm --filter @mana/db exec prisma db push --skip-generate
+      - name: Seed (admin + sample data)
+        run: pnpm --filter @mana/db exec tsx prisma/seed.ts
       - name: Boot API
         working-directory: apps/api
         run: |

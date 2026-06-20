@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { randomInt } from 'node:crypto';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from '../notifications/sms.service';
 import { EmailService } from '../notifications/email.service';
+import { BlocklistService } from '../moderation/blocklist.service';
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
@@ -24,6 +25,7 @@ export class OtpService {
     private readonly prisma: PrismaService,
     private readonly sms: SmsService,
     private readonly email: EmailService,
+    private readonly blocklist: BlocklistService,
   ) {}
 
   private get isMock(): boolean {
@@ -38,6 +40,9 @@ export class OtpService {
     destination: string,
     purpose: string,
   ): Promise<OtpRequestResult> {
+    if (channel === 'phone' && (await this.blocklist.isBlocked('phone', destination))) {
+      throw new ForbiddenException('This number is not permitted');
+    }
     const since = new Date(Date.now() - RESEND_WINDOW_MS);
     const recent = await this.prisma.otpChallenge.count({
       where: { destination, purpose, createdAt: { gte: since } },
