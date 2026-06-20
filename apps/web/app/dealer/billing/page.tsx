@@ -54,7 +54,15 @@ export default function DealerBilling() {
     setBusy(true);
     setError(null);
     try {
-      await api('/billing/subscribe', { method: 'POST', body: { planKey }, auth: true });
+      const r = await api<{ pending?: boolean; checkoutUrl?: string }>('/billing/subscribe', {
+        method: 'POST',
+        body: { planKey },
+        auth: true,
+      });
+      if (r?.checkoutUrl) {
+        window.location.href = r.checkoutUrl; // live Razorpay payment link
+        return;
+      }
       await load();
     } catch (e) {
       setError(errMsg(e));
