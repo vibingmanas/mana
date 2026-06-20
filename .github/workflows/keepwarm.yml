@@ -1,0 +1,20 @@
+name: Keep warm
+
+# Pings the free-tier services so they don't sleep (first request after idle is slow).
+# URLs come from repo variables API_URL / WEB_URL (fall back to the current deploy).
+on:
+  schedule:
+    - cron: '*/12 * * * *' # every 12 minutes
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping API + web
+        env:
+          API_URL: ${{ vars.API_URL || 'https://mana-api-l1yc.onrender.com' }}
+          WEB_URL: ${{ vars.WEB_URL || 'https://mana-web-m0v8.onrender.com' }}
+        run: |
+          curl -fsS --max-time 90 "$API_URL/api/health" >/dev/null && echo "API warm" || echo "API not responding"
+          curl -fsS --max-time 90 "$WEB_URL/" >/dev/null && echo "web warm" || echo "web not responding"
