@@ -13,6 +13,8 @@ import { publishBlocker } from './rules';
 import { estimateValuation, dealScore } from './valuation';
 import { assessOdometer } from '../inspections/odometer';
 import { AlertsService } from '../alerts/alerts.service';
+import { BillingService } from '../billing/billing.service';
+import { listingLimitReached } from '../billing/billing-rules';
 
 function parseDate(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
@@ -27,6 +29,7 @@ export class VehiclesService {
     private readonly dealers: DealersService,
     private readonly verification: VerificationService,
     private readonly alerts: AlertsService,
+    private readonly billing: BillingService,
   ) {}
 
   private async ownedVehicle(userId: string, vehicleId: string): Promise<Vehicle> {
@@ -183,12 +186,17 @@ export class VehiclesService {
       declaredKm: vehicle.odometerKm ?? 0,
       manufactureYear: vehicle.manufactureYear,
     });
+    const [liveCount, limit] = await Promise.all([
+      this.prisma.vehicle.count({ where: { dealerId: dealer.id, status: VehicleStatus.LIVE } }),
+      this.billing.listingLimitForDealer(dealer.id),
+    ]);
     const blocker = publishBlocker({
       tierOk: this.dealers.hasTier(dealer, VerificationTier.T1),
       rcVerified: !!verification?.verifiedAt,
       photoCount: photos,
       hasPrice: !!vehicle.price,
       odometerHighRisk: odometer.fraudRisk === 'HIGH',
+      listingLimitReached: listingLimitReached(liveCount, limit),
     });
     if (blocker) throw new BadRequestException(blocker);
 

@@ -15,6 +15,7 @@ import { AdminModule } from './admin/admin.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { FinanceModule } from './finance/finance.module';
 import { AlertsModule } from './alerts/alerts.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { AlertsModule } from './alerts/alerts.module';
     AdminModule,
     InspectionsModule,
     FinanceModule,
+    BillingModule,
     HealthModule,
   ],
 })
