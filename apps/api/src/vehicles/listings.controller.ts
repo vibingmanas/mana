@@ -1,15 +1,19 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { VehiclesService } from './vehicles.service';
+import { SearchService } from '../search/search.service';
 import { SearchListingsDto } from './dto';
 
 /** Public, unauthenticated browse + listing detail. */
 @Controller('listings')
 export class ListingsController {
-  constructor(private readonly vehicles: VehiclesService) {}
+  constructor(
+    private readonly vehicles: VehiclesService,
+    private readonly search: SearchService,
+  ) {}
 
   @Get()
-  search(@Query() query: SearchListingsDto) {
-    return this.vehicles.search(query);
+  searchListings(@Query() query: SearchListingsDto) {
+    return this.search.searchListings(query);
   }
 
   @Get(':id')
