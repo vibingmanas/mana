@@ -1,0 +1,356 @@
+// Mana — Prisma schema (foundation).
+// Models the core of the consolidated data model in plans/11-architecture-tech-stack.md.
+// Feature PRs extend this (listings detail, bookings, finance, billing, admin queues, etc.).
+// Geo stored as lat/lng floats for now; PostGIS geography column added in a later migration.
+
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../generated/client"
+  binaryTargets = ["native"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────
+
+enum UserRole {
+  BUYER
+  DEALER_OWNER
+  DEALER_STAFF
+  INSPECTOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum DealerStatus {
+  DRAFT
+  IN_REVIEW
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+// Verification tiers — see plans/01-vendor-onboarding.md
+enum VerificationTier {
+  T0 // registered (email + phone)
+  T1 // identity verified (+ aadhaar + pan)
+  T2 // business verified (+ gst + bank)
+  T3 // mana certified (+ premises + agreement)
+}
+
+enum CheckType {
+  EMAIL
+  PHONE
+  AADHAAR
+  PAN
+  GST
+  BANK
+  VEHICLE_RC
+  VEHICLE_CHALLAN
+}
+
+enum VerificationStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  MANUAL_REVIEW
+}
+
+enum VehicleStatus {
+  DRAFT
+  RC_VERIFYING
+  RC_VERIFIED
+  RC_FAILED
+  INSPECTION_PENDING
+  READY
+  LIVE
+  RESERVED
+  SOLD
+  PAUSED
+  EXPIRED
+  REMOVED
+}
+
+enum MediaType {
+  PHOTO
+  THREE_SIXTY
+  VIDEO
+  DOC
+}
+
+// ─── Identity ───────────────────────────────────────────────
+
+model User {
+  id          String     @id @default(cuid())
+  role        UserRole
+  phone       String     @unique
+  phoneVerifiedAt DateTime?
+  email       String?    @unique
+  emailVerifiedAt DateTime?
+  name        String?
+  status      UserStatus @default(ACTIVE)
+  passwordHash String?   // optional; OTP-first auth
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  dealerOwnerOf Dealer?       @relation("DealerOwner")
+  buyer         Buyer?
+  adminProfile  AdminUser?
+  refreshTokens RefreshToken[]
+  auditActions  AuditLog[]    @relation("AuditActor")
+
+  @@index([role])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// One-time passwords for phone/email verification (dev mock + real)
+model OtpChallenge {
+  id          String   @id @default(cuid())
+  channel     String   // "phone" | "email"
+  destination String
+  codeHash    String
+  purpose     String   // "login" | "onboarding" | ...
+  attempts    Int      @default(0)
+  consumedAt  DateTime?
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([destination, purpose])
+}
+
+// ─── Dealer (vendor) ────────────────────────────────────────
+
+model Dealer {
+  id               String           @id @default(cuid())
+  ownerUserId      String           @unique
+  ownerUser        User             @relation("DealerOwner", fields: [ownerUserId], references: [id])
+  legalName        String?
+  displayName      String?
+  ownerName        String?
+  status           DealerStatus     @default(DRAFT)
+  verificationTier VerificationTier @default(T0)
+  city             String?
+  state            String?
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  premisesType     String?
+  yearEstablished  Int?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  kyc        DealerKYC?
+  onboarding OnboardingProgress?
+  vehicles   Vehicle[]
+
+  @@index([status])
+  @@index([verificationTier])
+}
+
+model DealerKYC {
+  id               String    @id @default(cuid())
+  dealerId         String    @unique
+  dealer           Dealer    @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  emailVerifiedAt  DateTime?
+  phoneVerifiedAt  DateTime?
+  // Aadhaar: full number NEVER stored here. Token references the Aadhaar Data Vault.
+  aadhaarVaultToken String?
+  aadhaarNameMasked String?
+  aadhaarMethod     String?  // "digilocker" | "offline_xml"
+  aadhaarVerifiedAt DateTime?
+  pan              String?
+  panName          String?
+  panVerifiedAt    DateTime?
+  gstin            String?
+  gstLegalName     String?
+  gstStatus        String?
+  gstVerifiedAt    DateTime?
+  bankAccountRef   String?
+  bankName         String?
+  bankAccountName  String?
+  bankVerifiedAt   DateTime?
+  updatedAt        DateTime  @updatedAt
+}
+
+model OnboardingProgress {
+  dealerId       String   @id
+  dealer         Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  currentStep    String   @default("signup")
+  completedSteps String[] @default([])
+  lastActiveAt   DateTime @default(now())
+}
+
+// ─── Buyer ──────────────────────────────────────────────────
+
+model Buyer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city        String?
+  latitude    Float?
+  longitude   Float?
+  preferences Json?
+  createdAt   DateTime @default(now())
+}
+
+// ─── Vehicle / Listing ──────────────────────────────────────
+
+model Vehicle {
+  id              String        @id @default(cuid())
+  dealerId        String
+  dealer          Dealer        @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  regNumber       String
+  regState        String?
+  regYear         Int?
+  make            String?
+  model           String?
+  variant         String?
+  fuelType        String?
+  transmission    String?
+  bodyType        String?
+  manufactureYear Int?
+  odometerKm      Int?
+  ownersCount     Int?
+  color           String?
+  price           Int?
+  priceNegotiable Boolean       @default(true)
+  valuationLow    Int?
+  valuationFair   Int?
+  valuationHigh   Int?
+  status          VehicleStatus @default(DRAFT)
+  city            String?
+  latitude        Float?
+  longitude       Float?
+  listedAt        DateTime?
+  soldAt          DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  verification VehicleVerification?
+  media        MediaAsset[]
+
+  @@unique([dealerId, regNumber])
+  @@index([status])
+  @@index([make, model])
+}
+
+model VehicleVerification {
+  id                  String    @id @default(cuid())
+  vehicleId           String    @unique
+  vehicle             Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  source              String?   // "vahan" | provider
+  rcOwnerName         String?
+  rcStatus            String?
+  rcMakeModel         String?
+  rcFuel              String?
+  insuranceValidTill  DateTime?
+  insuranceProvider   String?
+  pucValidTill        DateTime?
+  hypothecationActive Boolean?
+  financerName        String?
+  challanCount        Int?
+  challanTotalAmount  Int?
+  challanDetails      Json?
+  confidence          Float?
+  verifiedAt          DateTime?
+}
+
+model MediaAsset {
+  id           String    @id @default(cuid())
+  vehicleId    String
+  vehicle      Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type         MediaType
+  url          String
+  thumbnailUrl String?
+  position     Int       @default(0)
+  aiTags       Json?
+  capturedVia  String?   // "app" | "upload"
+  createdAt    DateTime  @default(now())
+
+  @@index([vehicleId])
+}
+
+// ─── Verification engine (shared) ───────────────────────────
+// See plans/07-verification-kyc.md
+
+model VerificationRequest {
+  id              String             @id @default(cuid())
+  subjectType     String             // "dealer" | "vehicle" | "user"
+  subjectId       String
+  checkType       CheckType
+  provider        String?
+  status          VerificationStatus @default(PENDING)
+  idempotencyKey  String             @unique
+  normalizedResult Json?
+  confidence      Float?
+  consentLogId    String?
+  createdAt       DateTime           @default(now())
+  completedAt     DateTime?
+
+  @@index([subjectType, subjectId])
+  @@index([status])
+}
+
+model ConsentLog {
+  id           String   @id @default(cuid())
+  subjectId    String
+  purpose      String
+  provider     String?
+  documentType String?
+  consentedAt  DateTime @default(now())
+  ip           String?
+  userAgent    String?
+  expiresAt    DateTime? // <= 6 months for Aadhaar auth data
+
+  @@index([subjectId])
+}
+
+// ─── Admin / audit ──────────────────────────────────────────
+
+model AdminUser {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminRole   String   // superadmin | ops_admin | moderator | ...
+  permissions Json?
+  mfaEnabled  Boolean  @default(false)
+  lastLoginAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+// Append-only audit trail — see plans/06-admin-panel.md
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation("AuditActor", fields: [actorUserId], references: [id])
+  action      String
+  entityType  String
+  entityId    String?
+  before      Json?
+  after       Json?
+  reason      String?
+  ip          String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorUserId])
+}

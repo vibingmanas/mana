@@ -1,0 +1,33 @@
+{
+  "name": "@mana/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node --watch --require @swc-node/register src/main.ts",
+    "start": "node dist/main.js",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo \"(api) lint TBD\" && exit 0",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@mana/db": "workspace:*",
+    "@nestjs/common": "^11.0.5",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.5",
+    "@nestjs/platform-express": "^11.0.5",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.10.9",
+    "@swc/core": "^1.10.7",
+    "@types/node": "^22.10.7",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

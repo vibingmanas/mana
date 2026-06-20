@@ -16,6 +16,7 @@ out/
 !.env.example
 
 # prisma
+packages/db/generated/
 packages/db/prisma/migrations/dev.db*
 
 # logs
