@@ -27,7 +27,10 @@ export class OtpService {
   ) {}
 
   private get isMock(): boolean {
-    return (process.env.SMS_PROVIDER ?? 'mock') === 'mock' && process.env.NODE_ENV !== 'production';
+    // When no real SMS provider is configured, OTPs aren't actually delivered,
+    // so the code is returned in the response (dev + mock demo deployments).
+    // The moment SMS_PROVIDER is set to a real provider this stops automatically.
+    return (process.env.SMS_PROVIDER ?? 'mock') === 'mock';
   }
 
   async request(
