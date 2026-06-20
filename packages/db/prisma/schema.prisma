@@ -101,6 +101,20 @@ enum LeadStatus {
   LOST
 }
 
+enum AppointmentType {
+  AT_DEALER
+  DOORSTEP
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  RESCHEDULED
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
 // ─── Identity ───────────────────────────────────────────────
 
 model User {
@@ -173,10 +187,12 @@ model Dealer {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  kyc        DealerKYC?
-  onboarding OnboardingProgress?
-  vehicles   Vehicle[]
-  leads      Lead[]
+  kyc          DealerKYC?
+  onboarding   OnboardingProgress?
+  vehicles     Vehicle[]
+  leads        Lead[]
+  availability DealerAvailability[]
+  appointments Appointment[]
 
   @@index([status])
   @@index([verificationTier])
@@ -230,6 +246,7 @@ model Buyer {
   leads         Lead[]
   wishlist      Wishlist[]
   savedSearches SavedSearch[]
+  appointments  Appointment[]
 }
 
 model Lead {
@@ -274,6 +291,44 @@ model SavedSearch {
   @@index([buyerId])
 }
 
+model DealerAvailability {
+  id               String   @id @default(cuid())
+  dealerId         String
+  dealer           Dealer   @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  weekday          Int // 0=Sun .. 6=Sat
+  startMinute      Int // minutes from midnight, e.g. 600 = 10:00
+  endMinute        Int
+  slotMinutes      Int      @default(30)
+  doorstepEnabled  Boolean  @default(false)
+  doorstepRadiusKm Int      @default(0)
+
+  @@unique([dealerId, weekday])
+}
+
+model Appointment {
+  id            String            @id @default(cuid())
+  vehicleId     String
+  vehicle       Vehicle           @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealerId      String
+  dealer        Dealer            @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  buyerId       String
+  buyer         Buyer             @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  leadId        String?
+  type          AppointmentType   @default(AT_DEALER)
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  status        AppointmentStatus @default(REQUESTED)
+  location      Json?
+  showed        Boolean?
+  outcome       String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([dealerId, scheduledStart])
+  @@index([buyerId])
+  @@index([vehicleId, scheduledStart])
+}
+
 // ─── Vehicle / Listing ──────────────────────────────────────
 
 model Vehicle {
@@ -312,6 +367,7 @@ model Vehicle {
   media        MediaAsset[]
   leads        Lead[]
   wishlistedBy Wishlist[]
+  appointments Appointment[]
 
   @@unique([dealerId, regNumber])
   @@index([status])
