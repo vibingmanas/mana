@@ -182,13 +182,38 @@ model User {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  dealerOwnerOf Dealer?       @relation("DealerOwner")
+  dealerOwnerOf Dealer?        @relation("DealerOwner")
   buyer         Buyer?
   adminProfile  AdminUser?
   refreshTokens RefreshToken[]
-  auditActions  AuditLog[]    @relation("AuditActor")
+  auditActions  AuditLog[]     @relation("AuditActor")
+  notifications Notification[]
 
   @@index([role])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // price_drop | saved_search_match | ...
+  title     String
+  body      String
+  vehicleId String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId, read])
+}
+
+model PriceHistory {
+  id        String   @id @default(cuid())
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  price     Int
+  changedAt DateTime @default(now())
+
+  @@index([vehicleId])
 }
 
 model RefreshToken {
@@ -538,6 +563,7 @@ model Vehicle {
   financeApplications FinanceApplication[]
   insurancePolicies   InsurancePolicy[]
   rcTransfers         RcTransferCase[]
+  priceHistory        PriceHistory[]
 
   @@unique([dealerId, regNumber])
   @@index([status])
