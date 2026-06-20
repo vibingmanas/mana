@@ -6,6 +6,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { VerificationModule } from './verification/verification.module';
 import { AuthModule } from './auth/auth.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
+import { DealersModule } from './dealers/dealers.module';
+import { VehiclesModule } from './vehicles/vehicles.module';
 
 @Module({
   imports: [
@@ -13,8 +15,10 @@ import { OnboardingModule } from './onboarding/onboarding.module';
     PrismaModule,
     NotificationsModule,
     VerificationModule,
+    DealersModule,
     AuthModule,
     OnboardingModule,
+    VehiclesModule,
     HealthModule,
   ],
 })
