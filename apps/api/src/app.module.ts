@@ -9,6 +9,7 @@ import { OnboardingModule } from './onboarding/onboarding.module';
 import { DealersModule } from './dealers/dealers.module';
 import { VehiclesModule } from './vehicles/vehicles.module';
 import { BuyersModule } from './buyers/buyers.module';
+import { AppointmentsModule } from './appointments/appointments.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { BuyersModule } from './buyers/buyers.module';
     OnboardingModule,
     VehiclesModule,
     BuyersModule,
+    AppointmentsModule,
     HealthModule,
   ],
 })
