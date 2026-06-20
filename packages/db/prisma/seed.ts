@@ -38,6 +38,19 @@ async function main() {
     },
   });
 
+  // Inspector (field app)
+  await prisma.user.upsert({
+    where: { phone: '+919000000003' },
+    update: { role: UserRole.INSPECTOR },
+    create: {
+      phone: '+919000000003',
+      email: 'inspector@mana.dev',
+      name: 'Sample Inspector',
+      role: UserRole.INSPECTOR,
+      phoneVerifiedAt: new Date(),
+    },
+  });
+
   const dealer = await prisma.dealer.upsert({
     where: { ownerUserId: dealerUser.id },
     update: {},
