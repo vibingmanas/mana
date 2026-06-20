@@ -86,6 +86,21 @@ enum MediaType {
   DOC
 }
 
+enum LeadIntent {
+  ENQUIRY
+  TEST_DRIVE
+  FINANCE
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  APPOINTMENT
+  WON
+  LOST
+}
+
 // ─── Identity ───────────────────────────────────────────────
 
 model User {
@@ -161,6 +176,7 @@ model Dealer {
   kyc        DealerKYC?
   onboarding OnboardingProgress?
   vehicles   Vehicle[]
+  leads      Lead[]
 
   @@index([status])
   @@index([verificationTier])
@@ -210,6 +226,52 @@ model Buyer {
   longitude   Float?
   preferences Json?
   createdAt   DateTime @default(now())
+
+  leads         Lead[]
+  wishlist      Wishlist[]
+  savedSearches SavedSearch[]
+}
+
+model Lead {
+  id        String     @id @default(cuid())
+  buyerId   String
+  buyer     Buyer      @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  dealerId  String
+  dealer    Dealer     @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  channel   String     @default("web")
+  intent    LeadIntent @default(ENQUIRY)
+  status    LeadStatus @default(NEW)
+  note      String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([dealerId, status])
+  @@index([buyerId])
+  @@index([vehicleId])
+}
+
+model Wishlist {
+  id        String   @id @default(cuid())
+  buyerId   String
+  buyer     Buyer    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  vehicleId String
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([buyerId, vehicleId])
+}
+
+model SavedSearch {
+  id           String   @id @default(cuid())
+  buyerId      String
+  buyer        Buyer    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  query        Json
+  alertChannel String   @default("none") // none | push | whatsapp | email
+  createdAt    DateTime @default(now())
+
+  @@index([buyerId])
 }
 
 // ─── Vehicle / Listing ──────────────────────────────────────
@@ -236,6 +298,7 @@ model Vehicle {
   valuationLow    Int?
   valuationFair   Int?
   valuationHigh   Int?
+  dealScore       Float?
   status          VehicleStatus @default(DRAFT)
   city            String?
   latitude        Float?
@@ -247,6 +310,8 @@ model Vehicle {
 
   verification VehicleVerification?
   media        MediaAsset[]
+  leads        Lead[]
+  wishlistedBy Wishlist[]
 
   @@unique([dealerId, regNumber])
   @@index([status])

@@ -10,6 +10,7 @@ import { DealersService } from '../dealers/dealers.service';
 import { VerificationService } from '../verification/verification.service';
 import type { AddMediaDto, CreateVehicleDto, SearchListingsDto, UpdateVehicleDto } from './dto';
 import { publishBlocker } from './rules';
+import { estimateValuation, dealScore } from './valuation';
 
 function parseDate(v: unknown): Date | null {
   if (typeof v !== 'string') return null;
@@ -176,9 +177,22 @@ export class VehiclesService {
     });
     if (blocker) throw new BadRequestException(blocker);
 
+    const band = estimateValuation({
+      make: vehicle.make,
+      model: vehicle.model,
+      manufactureYear: vehicle.manufactureYear,
+      odometerKm: vehicle.odometerKm,
+    });
     await this.prisma.vehicle.update({
       where: { id: vehicleId },
-      data: { status: VehicleStatus.LIVE, listedAt: new Date() },
+      data: {
+        status: VehicleStatus.LIVE,
+        listedAt: new Date(),
+        valuationLow: band.low,
+        valuationFair: band.fair,
+        valuationHigh: band.high,
+        dealScore: vehicle.price ? dealScore(vehicle.price, band.fair) : null,
+      },
     });
     return this.getMine(userId, vehicleId);
   }
