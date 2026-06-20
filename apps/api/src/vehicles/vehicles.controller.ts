@@ -10,23 +10,40 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { IsString } from 'class-validator';
 import { UserRole } from '@mana/db';
 import { VehiclesService } from './vehicles.service';
+import { MediaUploadService } from './media-upload.service';
 import { AddMediaDto, CreateVehicleDto, SetStatusDto, UpdateVehicleDto } from './dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, type AuthUser } from '../common/decorators/current-user.decorator';
 
+class PresignDto {
+  @IsString() contentType!: string;
+}
+
 @Controller('vehicles')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.DEALER_OWNER)
 export class VehiclesController {
-  constructor(private readonly vehicles: VehiclesService) {}
+  constructor(
+    private readonly vehicles: VehiclesService,
+    private readonly uploads: MediaUploadService,
+  ) {}
 
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateVehicleDto) {
     return this.vehicles.create(user.userId, dto);
+  }
+
+  // Presigned S3 upload URL for a vehicle photo (key-ready; 400 if S3 unset).
+  @Post(':id/upload-url')
+  @HttpCode(200)
+  async uploadUrl(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PresignDto) {
+    await this.vehicles.getMine(user.userId, id); // ownership check
+    return this.uploads.presign(id, dto.contentType);
   }
 
   @Get()
