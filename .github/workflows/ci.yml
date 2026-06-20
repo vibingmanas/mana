@@ -35,15 +35,22 @@ jobs:
         run: pnpm test
 
   # Deploy on merge to main, only after the build/test job passes.
-  # Uses the Render Blueprint sync hook (re-syncs render.yaml + deploys all services).
+  # Uses per-service Render Deploy Hooks (these deploy the latest commit;
+  # the blueprint *sync* hook only re-applies render.yaml and does NOT deploy code).
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render blueprint deploy
+      - name: Deploy API (Render)
         env:
-          HOOK: ${{ secrets.RENDER_SYNC_HOOK }}
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
         run: |
-          if [ -z "$HOOK" ]; then echo "RENDER_SYNC_HOOK not set — skipping"; exit 0; fi
-          curl -fsS -X POST "$HOOK" && echo "Render blueprint deploy triggered"
+          if [ -z "$HOOK" ]; then echo "RENDER_DEPLOY_HOOK_API not set — skipping"; exit 0; fi
+          curl -fsS -X POST "$HOOK" && echo "API deploy triggered"
+      - name: Deploy web (Render)
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+        run: |
+          if [ -z "$HOOK" ]; then echo "RENDER_DEPLOY_HOOK_WEB not set — skipping"; exit 0; fi
+          curl -fsS -X POST "$HOOK" && echo "Web deploy triggered"
