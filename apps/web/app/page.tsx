@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 async function getApiHealth(): Promise<{ status: string; db: string } | null> {
   const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
   try {

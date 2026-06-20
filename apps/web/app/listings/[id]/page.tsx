@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import BuyerActions from './buyer-actions';
 
+export const dynamic = 'force-dynamic';
+
 interface Listing {
   id: string;
   make: string | null;

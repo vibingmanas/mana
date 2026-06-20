@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -33,3 +33,22 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # Deploy on merge to main, only after the build/test job passes.
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render API deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+        run: |
+          if [ -z "$HOOK" ]; then echo "RENDER_DEPLOY_HOOK_API not set — skipping"; exit 0; fi
+          curl -fsS -X POST "$HOOK" && echo "API deploy triggered"
+      - name: Trigger Render web deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+        run: |
+          if [ -z "$HOOK" ]; then echo "RENDER_DEPLOY_HOOK_WEB not set — skipping"; exit 0; fi
+          curl -fsS -X POST "$HOOK" && echo "Web deploy triggered"

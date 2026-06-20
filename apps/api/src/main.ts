@@ -16,7 +16,7 @@ async function bootstrap() {
     .map((s) => s.trim());
   app.enableCors({ origin: origins, credentials: true });
 
-  const port = Number(process.env.API_PORT ?? 4000);
+  const port = Number(process.env.PORT ?? process.env.API_PORT ?? 4000);
   await app.listen(port);
   Logger.log(`Mana API listening on http://localhost:${port}/api`, 'Bootstrap');
 }
