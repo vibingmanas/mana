@@ -115,5 +115,42 @@ ok((await call('/dealer/leads', { token: dt })).json.leads.length >= 1, 'lead in
 // RBAC: buyer denied dealer endpoint
 ok((await call('/vehicles', { token: bt })).status === 403, 'buyer denied dealer endpoint (403)');
 
+// sell-your-car: estimate -> book inspection -> offers -> accept
+const est = await call('/sell/estimate', {
+  method: 'POST',
+  body: {
+    make: 'Hyundai',
+    model: 'i20',
+    manufactureYear: 2019,
+    odometerKm: 60000,
+    condition: 'good',
+    city: 'Pune',
+  },
+  token: bt,
+});
+ok(
+  est.status === 201 && est.json.estFair > 0,
+  `sell estimate produced a range (fair ${est.json?.estFair})`,
+);
+const booked = await call(`/sell/${est.json.id}/book-inspection`, {
+  method: 'POST',
+  body: {},
+  token: bt,
+});
+ok(
+  booked.json.status === 'OFFERS_READY' && booked.json.offers.length === 3,
+  `inspection booked -> 3 dealer offers`,
+);
+const best = booked.json.offers[0];
+const accepted = await call(`/sell/${est.json.id}/offers/${best.id}/accept`, {
+  method: 'POST',
+  token: bt,
+});
+ok(
+  accepted.json.status === 'ACCEPTED' &&
+    accepted.json.offers.find((o) => o.id === best.id).status === 'ACCEPTED',
+  'seller accepted an offer',
+);
+
 console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILURE(S)'}`);
 process.exit(failures === 0 ? 0 : 1);

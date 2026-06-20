@@ -17,6 +17,7 @@ import { FinanceModule } from './finance/finance.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { PaymentsModule } from './payments/payments.module';
 import { BillingModule } from './billing/billing.module';
+import { SellModule } from './sell/sell.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { BillingModule } from './billing/billing.module';
     InspectionsModule,
     FinanceModule,
     BillingModule,
+    SellModule,
     HealthModule,
   ],
 })

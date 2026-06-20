@@ -201,8 +201,63 @@ model User {
   refreshTokens RefreshToken[]
   auditActions  AuditLog[]     @relation("AuditActor")
   notifications Notification[]
+  sellRequests  SellRequest[]
 
   @@index([role])
+}
+
+enum SellStatus {
+  ESTIMATED
+  INSPECTION_BOOKED
+  OFFERS_READY
+  ACCEPTED
+  CLOSED
+}
+
+enum OfferStatus {
+  OPEN
+  ACCEPTED
+  DECLINED
+}
+
+model SellRequest {
+  id              String      @id @default(cuid())
+  sellerUserId    String
+  seller          User        @relation(fields: [sellerUserId], references: [id], onDelete: Cascade)
+  regNumber       String?
+  make            String?
+  model           String?
+  manufactureYear Int?
+  fuelType        String?
+  transmission    String?
+  odometerKm      Int?
+  ownersCount     Int?
+  city            String?
+  condition       String? // excellent | good | fair
+  accidentDamage  Boolean     @default(false)
+  estLow          Int
+  estFair         Int
+  estHigh         Int
+  status          SellStatus  @default(ESTIMATED)
+  inspectionAt    DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  offers          DealerOffer[]
+
+  @@index([sellerUserId])
+}
+
+model DealerOffer {
+  id            String      @id @default(cuid())
+  sellRequestId String
+  sellRequest   SellRequest @relation(fields: [sellRequestId], references: [id], onDelete: Cascade)
+  dealerName    String
+  dealerTier    String
+  amount        Int
+  status        OfferStatus @default(OPEN)
+  createdAt     DateTime    @default(now())
+
+  @@index([sellRequestId])
 }
 
 model Notification {
