@@ -1,15 +1,11 @@
 'use client';
 
-import { useState } from 'react';
-import { api, setTokens, type ApiError } from '../../../lib/api';
+import { useEffect, useState } from 'react';
+import { api, getToken, setTokens, type ApiError } from '../../../lib/api';
+import { C, display, h1, card, input, btnInk, btnPrimary, trustBadge } from '../../../lib/ds';
 
 interface OnboardingStatus {
-  dealer: {
-    id: string;
-    displayName: string | null;
-    status: string;
-    verificationTier: string;
-  };
+  dealer: { id: string; displayName: string | null; status: string; verificationTier: string };
   completedSteps: string[];
   nextStep: string | null;
 }
@@ -23,33 +19,36 @@ const STEP_LABELS: Record<string, string> = {
   bank: 'Bank',
 };
 const ALL_STEPS = ['phone', 'email', 'aadhaar', 'pan', 'gst', 'bank'];
-
 const TIER_INFO: Record<string, string> = {
   T0: 'Registered — finish identity to publish listings',
-  T1: 'Identity verified — you can publish listings & get leads',
-  T2: 'Business verified — payouts, financing & Verified Dealer badge',
-  T3: 'Mana Certified',
+  T1: 'Identity verified — publish listings & get leads',
+  T2: 'Business verified — payouts, financing & verified badge',
+  T3: 'Mana Certified — the top trust badge buyers look for',
 };
+const errMsg = (e: unknown) => (e as ApiError)?.message ?? 'Something went wrong';
 
-function errMsg(e: unknown): string {
-  return (e as ApiError)?.message ?? 'Something went wrong';
-}
-
-export default function DealerOnboarding() {
+export default function DealerVerification() {
   const [phase, setPhase] = useState<'login' | 'wizard'>('login');
   const [status, setStatus] = useState<OnboardingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  // login state
   const [phone, setPhone] = useState('+91');
   const [otpSent, setOtpSent] = useState(false);
   const [code, setCode] = useState('');
   const [devHint, setDevHint] = useState<string | null>(null);
 
-  async function refreshStatus() {
+  useEffect(() => {
+    if (getToken())
+      api<OnboardingStatus>('/onboarding/status', { auth: true })
+        .then((s) => {
+          setStatus(s);
+          setPhase('wizard');
+        })
+        .catch(() => {});
+  }, []);
+
+  const refreshStatus = async () =>
     setStatus(await api<OnboardingStatus>('/onboarding/status', { auth: true }));
-  }
 
   async function run(fn: () => Promise<void>) {
     setBusy(true);
@@ -90,70 +89,115 @@ export default function DealerOnboarding() {
 
   if (phase === 'login') {
     return (
-      <Shell title="Dealer onboarding" subtitle="Sign in with your phone to get started.">
-        <Field label="Phone (E.164)">
+      <section style={{ maxWidth: 460 }}>
+        <h1 style={h1}>Dealer sign-in</h1>
+        <p style={{ color: C.grey, margin: '6px 0 20px', fontSize: 14.5 }}>
+          Verify your phone to start. New here? This also creates your dealership.
+        </p>
+        <div style={card}>
+          <label
+            style={{
+              fontSize: 13,
+              fontWeight: 700,
+              color: C.text,
+              display: 'block',
+              marginBottom: 8,
+            }}
+          >
+            Phone (E.164)
+          </label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="+9190000..."
-            style={inputStyle}
+            placeholder="+9190000…"
+            style={input}
           />
-        </Field>
-        {!otpSent ? (
-          <button style={btnStyle} disabled={busy} onClick={requestOtp}>
-            {busy ? 'Sending…' : 'Send OTP'}
-          </button>
-        ) : (
-          <>
-            <Field label="OTP">
-              <input value={code} onChange={(e) => setCode(e.target.value)} style={inputStyle} />
-            </Field>
-            {devHint && <p style={hintStyle}>Dev OTP: {devHint}</p>}
-            <button style={btnStyle} disabled={busy} onClick={verifyOtp}>
-              {busy ? 'Verifying…' : 'Verify & continue'}
+          {!otpSent ? (
+            <button
+              style={{ ...btnInk, width: '100%', marginTop: 14 }}
+              disabled={busy}
+              onClick={requestOtp}
+            >
+              {busy ? 'Sending…' : 'Send OTP'}
             </button>
-          </>
-        )}
-        {error && <p style={errStyle}>{error}</p>}
-      </Shell>
+          ) : (
+            <>
+              <label
+                style={{
+                  fontSize: 13,
+                  fontWeight: 700,
+                  color: C.text,
+                  display: 'block',
+                  margin: '14px 0 8px',
+                }}
+              >
+                OTP
+              </label>
+              <input value={code} onChange={(e) => setCode(e.target.value)} style={input} />
+              {devHint && (
+                <p style={{ color: C.coral, fontSize: 13, margin: '8px 0 0' }}>
+                  Demo OTP: {devHint}
+                </p>
+              )}
+              <button
+                style={{ ...btnInk, width: '100%', marginTop: 14 }}
+                disabled={busy}
+                onClick={verifyOtp}
+              >
+                {busy ? 'Verifying…' : 'Verify & continue'}
+              </button>
+            </>
+          )}
+          {error && <p style={{ color: C.coralDark, marginTop: 14 }}>{error}</p>}
+        </div>
+      </section>
     );
   }
 
+  const tier = status?.dealer.verificationTier ?? 'T0';
+
   return (
-    <Shell
-      title="Dealer onboarding"
-      subtitle={status ? TIER_INFO[status.dealer.verificationTier] : ''}
-    >
-      {status && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-          {ALL_STEPS.map((s) => {
-            const done = status.completedSteps.includes(s);
-            return (
-              <span
-                key={s}
-                style={{
-                  padding: '4px 10px',
-                  borderRadius: 999,
-                  fontSize: 13,
-                  background: done ? 'rgba(45,212,191,0.18)' : 'rgba(255,255,255,0.06)',
-                  color: done ? 'var(--accent)' : 'var(--muted)',
-                  border: `1px solid ${done ? 'var(--accent)' : 'transparent'}`,
-                }}
-              >
-                {done ? '✓ ' : ''}
-                {STEP_LABELS[s]}
-              </span>
-            );
-          })}
-          <span style={{ marginLeft: 'auto', fontWeight: 600 }}>
-            Tier {status.dealer.verificationTier}
-          </span>
-        </div>
-      )}
+    <section>
+      <h1 style={h1}>Verification</h1>
+      <p style={{ color: C.grey, margin: '5px 0 18px', fontSize: 14.5 }}>{TIER_INFO[tier]}</p>
+
+      <div
+        style={{
+          background: C.indigo,
+          borderRadius: 18,
+          padding: 20,
+          marginBottom: 20,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 10,
+          alignItems: 'center',
+        }}
+      >
+        {ALL_STEPS.map((s) => {
+          const done = status?.completedSteps.includes(s);
+          return (
+            <span
+              key={s}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 999,
+                fontSize: 13,
+                fontWeight: 700,
+                background: done ? C.cream : 'rgba(250,246,239,.12)',
+                color: done ? C.indigo : 'rgba(250,246,239,.7)',
+              }}
+            >
+              {done ? '✓ ' : ''}
+              {STEP_LABELS[s]}
+            </span>
+          );
+        })}
+        <span style={{ marginLeft: 'auto', ...trustBadge }}>Tier {tier}</span>
+      </div>
 
       <StepForms busy={busy} run={run} refreshStatus={refreshStatus} />
-      {error && <p style={errStyle}>{error}</p>}
-    </Shell>
+      {error && <p style={{ color: C.coralDark, marginTop: 16 }}>{error}</p>}
+    </section>
   );
 }
 
@@ -189,7 +233,6 @@ function StepForms({
         setEmailCode(res.devCode);
       }
     });
-
   const verifyEmail = () =>
     run(async () => {
       await api('/onboarding/email/verify', {
@@ -199,46 +242,57 @@ function StepForms({
       });
       await refreshStatus();
     });
-
-  const submit = (path: string, body: unknown) =>
+  const submit = (path: string, b: unknown) =>
     run(async () => {
-      await api(path, { method: 'POST', body, auth: true });
+      await api(path, { method: 'POST', body: b, auth: true });
       await refreshStatus();
     });
 
   return (
-    <div style={{ display: 'grid', gap: 24 }}>
+    <div style={{ display: 'grid', gap: 14 }}>
       <Card title="Email">
-        <Field label="Email">
-          <input value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} />
-        </Field>
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@dealership.in"
+          style={input}
+        />
         {!emailSent ? (
-          <button style={btnStyle} disabled={busy} onClick={requestEmail}>
+          <button style={{ ...btnPrimary, marginTop: 12 }} disabled={busy} onClick={requestEmail}>
             Send email OTP
           </button>
         ) : (
           <>
-            <Field label="OTP">
-              <input
-                value={emailCode}
-                onChange={(e) => setEmailCode(e.target.value)}
-                style={inputStyle}
-              />
-            </Field>
-            {emailHint && <p style={hintStyle}>Dev OTP: {emailHint}</p>}
-            <button style={btnStyle} disabled={busy} onClick={verifyEmail}>
+            <input
+              value={emailCode}
+              onChange={(e) => setEmailCode(e.target.value)}
+              placeholder="OTP"
+              style={{ ...input, marginTop: 10 }}
+            />
+            {emailHint && (
+              <p style={{ color: C.coral, fontSize: 13, margin: '8px 0 0' }}>
+                Demo OTP: {emailHint}
+              </p>
+            )}
+            <button style={{ ...btnPrimary, marginTop: 12 }} disabled={busy} onClick={verifyEmail}>
               Verify email
             </button>
           </>
         )}
       </Card>
 
-      <Card title="Aadhaar (DigiLocker — mock)">
-        <Field label="Aadhaar number (12 digits)">
-          <input value={aadhaar} onChange={(e) => setAadhaar(e.target.value)} style={inputStyle} />
-        </Field>
+      <Card
+        title="Aadhaar"
+        privacy="Via DigiLocker consent — we never store your full Aadhaar number."
+      >
+        <input
+          value={aadhaar}
+          onChange={(e) => setAadhaar(e.target.value)}
+          placeholder="12-digit Aadhaar"
+          style={input}
+        />
         <button
-          style={btnStyle}
+          style={{ ...btnPrimary, marginTop: 12 }}
           disabled={busy}
           onClick={() => submit('/onboarding/aadhaar', { aadhaarNumber: aadhaar })}
         >
@@ -247,28 +301,30 @@ function StepForms({
       </Card>
 
       <Card title="PAN">
-        <Field label="PAN">
-          <input
-            value={pan}
-            onChange={(e) => setPan(e.target.value.toUpperCase())}
-            style={inputStyle}
-          />
-        </Field>
-        <button style={btnStyle} disabled={busy} onClick={() => submit('/onboarding/pan', { pan })}>
+        <input
+          value={pan}
+          onChange={(e) => setPan(e.target.value.toUpperCase())}
+          placeholder="ABCDE1234F"
+          style={input}
+        />
+        <button
+          style={{ ...btnPrimary, marginTop: 12 }}
+          disabled={busy}
+          onClick={() => submit('/onboarding/pan', { pan })}
+        >
           Verify PAN
         </button>
       </Card>
 
       <Card title="GST">
-        <Field label="GSTIN (15 chars)">
-          <input
-            value={gst}
-            onChange={(e) => setGst(e.target.value.toUpperCase())}
-            style={inputStyle}
-          />
-        </Field>
+        <input
+          value={gst}
+          onChange={(e) => setGst(e.target.value.toUpperCase())}
+          placeholder="15-character GSTIN"
+          style={input}
+        />
         <button
-          style={btnStyle}
+          style={{ ...btnPrimary, marginTop: 12 }}
           disabled={busy}
           onClick={() => submit('/onboarding/gst', { gstin: gst })}
         >
@@ -277,18 +333,22 @@ function StepForms({
       </Card>
 
       <Card title="Bank account">
-        <Field label="Account number">
-          <input value={acct} onChange={(e) => setAcct(e.target.value)} style={inputStyle} />
-        </Field>
-        <Field label="IFSC">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <input
+            value={acct}
+            onChange={(e) => setAcct(e.target.value)}
+            placeholder="Account number"
+            style={input}
+          />
           <input
             value={ifsc}
             onChange={(e) => setIfsc(e.target.value.toUpperCase())}
-            style={inputStyle}
+            placeholder="IFSC"
+            style={input}
           />
-        </Field>
+        </div>
         <button
-          style={btnStyle}
+          style={{ ...btnPrimary, marginTop: 12 }}
           disabled={busy}
           onClick={() => submit('/onboarding/bank', { accountNumber: acct, ifsc })}
         >
@@ -299,61 +359,30 @@ function StepForms({
   );
 }
 
-function Shell({
+function Card({
   title,
-  subtitle,
+  privacy,
   children,
 }: {
   title: string;
-  subtitle?: string;
+  privacy?: string;
   children: React.ReactNode;
 }) {
   return (
-    <main style={{ maxWidth: 640, margin: '0 auto', padding: '3rem 1.5rem' }}>
-      <h1 style={{ marginBottom: 4 }}>{title}</h1>
-      {subtitle && <p style={{ color: 'var(--muted)', marginTop: 0 }}>{subtitle}</p>}
-      <div style={{ marginTop: 24 }}>{children}</div>
-    </main>
-  );
-}
-
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section style={{ background: 'var(--card)', borderRadius: 12, padding: '1.25rem' }}>
-      <strong style={{ display: 'block', marginBottom: 12 }}>{title}</strong>
+    <section style={card}>
+      <strong
+        style={{
+          display: 'block',
+          fontFamily: display,
+          fontSize: 16,
+          color: C.indigo,
+          marginBottom: 12,
+        }}
+      >
+        {title}
+      </strong>
+      {privacy && <p style={{ fontSize: 12.5, color: C.grey, margin: '0 0 12px' }}>{privacy}</p>}
       {children}
     </section>
   );
 }
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label style={{ display: 'block', marginBottom: 12 }}>
-      <span style={{ display: 'block', fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  padding: '10px 12px',
-  borderRadius: 8,
-  border: '1px solid rgba(255,255,255,0.12)',
-  background: '#0b1020',
-  color: 'var(--fg)',
-  fontSize: 15,
-};
-const btnStyle: React.CSSProperties = {
-  padding: '10px 16px',
-  borderRadius: 8,
-  border: 'none',
-  background: 'var(--accent)',
-  color: '#04201c',
-  fontWeight: 600,
-  cursor: 'pointer',
-};
-const hintStyle: React.CSSProperties = { color: 'var(--accent)', fontSize: 13, margin: '4px 0' };
-const errStyle: React.CSSProperties = { color: '#f87171', marginTop: 16 };

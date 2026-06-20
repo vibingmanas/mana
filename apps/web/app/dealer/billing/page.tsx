@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '../../../lib/api';
+import { C, display, h1, card, inr } from '../../../lib/ds';
 
 interface Plan {
   id: string;
@@ -24,7 +25,6 @@ interface Invoice {
   status: string;
   issuedAt: string;
 }
-
 const errMsg = (e: unknown) => (e as ApiError)?.message ?? 'Something went wrong';
 
 export default function DealerBilling() {
@@ -63,94 +63,213 @@ export default function DealerBilling() {
     }
   }
 
-  if (authed === null) return <Shell>Loading…</Shell>;
+  if (authed === null) return <p style={{ color: C.grey }}>Loading…</p>;
   if (!authed)
     return (
-      <Shell>
-        <p>
-          Please <Link href="/dealer/onboarding">sign in as a dealer</Link> first.
-        </p>
-      </Shell>
+      <p style={{ color: C.grey }}>
+        Please{' '}
+        <Link href="/dealer/onboarding" style={{ color: C.coral }}>
+          sign in
+        </Link>{' '}
+        first.
+      </p>
     );
 
+  const limit = sub?.listingLimit ?? 3;
+  const used = sub?.liveListings ?? 0;
+  const pct = limit < 0 ? 8 : Math.min(100, Math.round((used / Math.max(limit, 1)) * 100));
+
   return (
-    <Shell>
-      <h1>Plans &amp; billing</h1>
-      {sub && (
-        <p style={{ color: 'var(--muted)' }}>
-          Current:{' '}
-          <strong style={{ color: 'var(--fg)' }}>{sub.plan?.name ?? 'Starter (free)'}</strong> ·{' '}
-          {sub.liveListings}/{sub.listingLimit < 0 ? '∞' : sub.listingLimit} live listings
+    <section>
+      <div style={{ marginBottom: 18 }}>
+        <h1 style={h1}>Plans &amp; billing</h1>
+        <p style={{ margin: '5px 0 0', color: C.grey, fontSize: 14.5 }}>
+          You're on the {sub?.plan?.name ?? 'Starter'} plan
         </p>
-      )}
-      {error && <p style={{ color: '#f87171' }}>{error}</p>}
+      </div>
+      {error && <p style={{ color: C.coralDark }}>{error}</p>}
+
+      <div style={{ ...card, marginBottom: 18 }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            marginBottom: 12,
+          }}
+        >
+          <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Live listings used</span>
+          <span style={{ fontSize: 13.5, color: C.grey }}>
+            <b style={{ color: C.indigo }}>{used}</b> of {limit < 0 ? '∞' : limit}
+          </span>
+        </div>
+        <div style={{ height: 10, borderRadius: 999, background: C.border, overflow: 'hidden' }}>
+          <div
+            style={{ height: '100%', borderRadius: 999, background: C.indigo, width: `${pct}%` }}
+          />
+        </div>
+      </div>
 
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 16,
-          margin: '20px 0',
+          gridTemplateColumns: 'repeat(auto-fit,minmax(230px,1fr))',
+          gap: 14,
+          marginBottom: 24,
         }}
       >
-        {plans.map((p) => (
-          <div
-            key={p.id}
-            style={{ background: 'var(--card)', borderRadius: 12, padding: '1.25rem' }}
-          >
-            <strong style={{ fontSize: 18 }}>{p.name}</strong>
-            <div style={{ fontSize: 24, fontWeight: 700, margin: '8px 0' }}>
-              {p.priceMonthly === 0 ? 'Free' : `₹${p.priceMonthly.toLocaleString('en-IN')}`}
-              {p.priceMonthly > 0 && (
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>/mo + GST</span>
-              )}
-            </div>
-            <ul style={{ color: 'var(--muted)', fontSize: 13, paddingLeft: 18, minHeight: 80 }}>
-              {(p.features ?? []).map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-            <button
+        {plans.map((p) => {
+          const current = sub?.plan?.key === p.key || (!sub?.plan && p.key === 'starter');
+          return (
+            <div
+              key={p.id}
               style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: 8,
-                border: 'none',
-                background: sub?.plan?.key === p.key ? 'rgba(255,255,255,0.1)' : 'var(--accent)',
-                color: sub?.plan?.key === p.key ? 'var(--muted)' : '#04201c',
-                fontWeight: 600,
-                cursor: sub?.plan?.key === p.key ? 'default' : 'pointer',
+                ...card,
+                position: 'relative',
+                border: current ? `2px solid ${C.indigo}` : `1px solid ${C.border}`,
               }}
-              disabled={busy || sub?.plan?.key === p.key}
-              onClick={() => subscribe(p.key)}
             >
-              {sub?.plan?.key === p.key
-                ? 'Current plan'
-                : p.priceMonthly === 0
-                  ? 'Select'
-                  : 'Subscribe'}
-            </button>
-          </div>
-        ))}
+              {current && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 16,
+                    right: 16,
+                    background: C.tint,
+                    color: C.indigo,
+                    fontWeight: 800,
+                    fontSize: 11,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                  }}
+                >
+                  CURRENT
+                </span>
+              )}
+              <div style={{ fontFamily: display, fontWeight: 800, fontSize: 19, color: C.indigo }}>
+                {p.name}
+              </div>
+              <div style={{ margin: '10px 0 4px' }}>
+                <span
+                  style={{
+                    fontFamily: display,
+                    fontSize: 32,
+                    fontWeight: 800,
+                    color: C.indigo,
+                    letterSpacing: '-.02em',
+                  }}
+                >
+                  {p.priceMonthly === 0 ? 'Free' : inr(p.priceMonthly)}
+                </span>
+                {p.priceMonthly > 0 && (
+                  <span style={{ fontSize: 13, color: C.grey }}>/mo + GST</span>
+                )}
+              </div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: 9, margin: '16px 0 18px' }}
+              >
+                {(p.features ?? []).map((f) => (
+                  <div
+                    key={f}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 9,
+                      fontSize: 13.5,
+                      color: C.text,
+                    }}
+                  >
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={C.coral}
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ flex: '0 0 auto' }}
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                    {f}
+                  </div>
+                ))}
+              </div>
+              <button
+                disabled={busy || current}
+                onClick={() => subscribe(p.key)}
+                style={{
+                  width: '100%',
+                  padding: 12,
+                  borderRadius: 12,
+                  border: 'none',
+                  background: current ? C.border : C.indigo,
+                  color: current ? C.grey : C.cream,
+                  fontWeight: 700,
+                  fontSize: 14,
+                  cursor: current ? 'default' : 'pointer',
+                }}
+              >
+                {current ? 'Current plan' : p.priceMonthly === 0 ? 'Select' : 'Subscribe'}
+              </button>
+            </div>
+          );
+        })}
       </div>
 
-      <h2 style={{ fontSize: 18 }}>Invoices</h2>
-      <div style={{ display: 'grid', gap: 6 }}>
-        {invoices.map((i) => (
-          <div key={i.id} style={{ fontSize: 13, color: 'var(--muted)' }}>
-            {new Date(i.issuedAt).toLocaleDateString('en-IN')} · ₹
-            {(i.amount + i.gstAmount).toLocaleString('en-IN')} (incl. ₹{i.gstAmount} GST) ·{' '}
-            {i.status}
+      <div style={{ ...card, borderRadius: 20, padding: 22 }}>
+        <div
+          style={{
+            fontFamily: display,
+            fontWeight: 800,
+            fontSize: 17,
+            color: C.indigo,
+            marginBottom: 8,
+          }}
+        >
+          GST invoices
+        </div>
+        {invoices.map((iv) => (
+          <div
+            key={iv.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '13px 4px',
+              borderBottom: `1px solid ${C.border}`,
+            }}
+          >
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>
+                {new Date(iv.issuedAt).toLocaleDateString('en-IN')}
+              </div>
+              <div style={{ fontSize: 12.5, color: C.grey }}>incl. {inr(iv.gstAmount)} GST</div>
+            </div>
+            <span style={{ fontFamily: display, fontWeight: 800, fontSize: 15, color: C.indigo }}>
+              {inr(iv.amount + iv.gstAmount)}
+            </span>
+            <span
+              style={{
+                background: C.tint,
+                color: C.indigo,
+                fontWeight: 700,
+                fontSize: 11.5,
+                padding: '4px 10px',
+                borderRadius: 999,
+              }}
+            >
+              {iv.status}
+            </span>
           </div>
         ))}
-        {invoices.length === 0 && <p style={{ color: 'var(--muted)' }}>No invoices yet.</p>}
+        {invoices.length === 0 && (
+          <p style={{ color: C.grey, margin: '8px 0 0' }}>No invoices yet.</p>
+        )}
       </div>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main style={{ maxWidth: 820, margin: '0 auto', padding: '2.5rem 1.5rem' }}>{children}</main>
+    </section>
   );
 }

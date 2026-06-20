@@ -3,23 +3,36 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api, getToken, type ApiError } from '../../../lib/api';
+import { C, display, h1 } from '../../../lib/ds';
 
 interface Lead {
   id: string;
   intent: string;
   status: string;
-  note: string | null;
   createdAt: string;
   vehicle: { make: string | null; model: string | null; regNumber: string } | null;
-  buyer: { user: { phone: string; name: string | null } } | null;
+  buyer: { user: { name: string | null; phone: string } } | null;
 }
-
 interface LeadsResponse {
   pipeline: Record<string, number>;
   leads: Lead[];
 }
 
 const STAGES = ['NEW', 'CONTACTED', 'QUALIFIED', 'APPOINTMENT', 'WON', 'LOST'];
+const STAGE_LABEL: Record<string, string> = {
+  NEW: 'New',
+  CONTACTED: 'Contacted',
+  QUALIFIED: 'Qualified',
+  APPOINTMENT: 'Appointment',
+  WON: 'Won',
+  LOST: 'Lost',
+};
+const NEXT: Record<string, string> = {
+  NEW: 'CONTACTED',
+  CONTACTED: 'QUALIFIED',
+  QUALIFIED: 'APPOINTMENT',
+  APPOINTMENT: 'WON',
+};
 const errMsg = (e: unknown) => (e as ApiError)?.message ?? 'Something went wrong';
 
 export default function DealerLeads() {
@@ -34,7 +47,7 @@ export default function DealerLeads() {
     if (authed) load().catch((e) => setError(errMsg(e)));
   }, [authed]);
 
-  async function setStatus(id: string, status: string) {
+  async function advance(id: string, status: string) {
     setBusy(true);
     setError(null);
     try {
@@ -47,96 +60,203 @@ export default function DealerLeads() {
     }
   }
 
-  if (authed === null) return <Shell>Loading…</Shell>;
+  if (authed === null) return <p style={{ color: C.grey }}>Loading…</p>;
   if (!authed)
     return (
-      <Shell>
-        <p>
-          Please <Link href="/dealer/onboarding">sign in as a dealer</Link> first.
-        </p>
-      </Shell>
+      <p style={{ color: C.grey }}>
+        Please{' '}
+        <Link href="/dealer/onboarding" style={{ color: C.coral }}>
+          sign in
+        </Link>{' '}
+        first.
+      </p>
     );
 
+  const open =
+    (data?.pipeline.NEW ?? 0) + (data?.pipeline.CONTACTED ?? 0) + (data?.pipeline.QUALIFIED ?? 0);
+
   return (
-    <Shell>
-      <h1>Leads</h1>
-      {data && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0 20px' }}>
-          {STAGES.map((s) => (
-            <span
-              key={s}
-              style={{
-                padding: '4px 10px',
-                borderRadius: 999,
-                background: 'var(--card)',
-                fontSize: 13,
-              }}
-            >
-              {s}: <strong>{data.pipeline[s] ?? 0}</strong>
-            </span>
-          ))}
-        </div>
-      )}
-      {error && <p style={{ color: '#f87171' }}>{error}</p>}
-      <div style={{ display: 'grid', gap: 10 }}>
-        {data?.leads.map((l) => {
-          const phone = l.buyer?.user.phone ?? '';
+    <section>
+      <div style={{ marginBottom: 18 }}>
+        <h1 style={h1}>Leads</h1>
+        <p style={{ margin: '5px 0 0', color: C.grey, fontSize: 14.5 }}>
+          {open} open · advance each card through your pipeline
+        </p>
+      </div>
+      {error && <p style={{ color: C.coralDark }}>{error}</p>}
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 14,
+          overflowX: 'auto',
+          paddingBottom: 10,
+          alignItems: 'flex-start',
+        }}
+      >
+        {STAGES.map((stage) => {
+          const cards = (data?.leads ?? []).filter((l) => l.status === stage);
           return (
             <div
-              key={l.id}
-              style={{ background: 'var(--card)', borderRadius: 12, padding: '1rem' }}
+              key={stage}
+              style={{
+                flex: '0 0 264px',
+                background: C.cream2,
+                border: `1px solid ${C.border}`,
+                borderRadius: 18,
+                padding: 12,
+              }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <strong>
-                  {l.vehicle?.make} {l.vehicle?.model} · {l.vehicle?.regNumber}
-                </strong>
-                <span style={{ color: 'var(--muted)', fontSize: 13 }}>{l.intent}</span>
-              </div>
-              <div style={{ color: 'var(--muted)', fontSize: 13, margin: '6px 0' }}>
-                {l.buyer?.user.name ?? 'Buyer'} · {phone} ·{' '}
-                {new Date(l.createdAt).toLocaleDateString('en-IN')}
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select
-                  value={l.status}
-                  disabled={busy}
-                  onChange={(e) => setStatus(l.id, e.target.value)}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '4px 6px 12px',
+                }}
+              >
+                <span style={{ fontWeight: 800, fontSize: 13.5, color: C.indigo }}>
+                  {STAGE_LABEL[stage]}
+                </span>
+                <span
                   style={{
-                    padding: '6px 10px',
-                    borderRadius: 8,
-                    background: '#0b1020',
-                    color: 'var(--fg)',
-                    border: '1px solid rgba(255,255,255,0.14)',
+                    background: '#fff',
+                    border: `1px solid ${C.border}`,
+                    color: C.grey,
+                    fontWeight: 700,
+                    fontSize: 12,
+                    padding: '2px 9px',
+                    borderRadius: 999,
                   }}
                 >
-                  {STAGES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-                {phone && (
-                  <a
-                    href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ fontSize: 13 }}
-                  >
-                    WhatsApp →
-                  </a>
+                  {data?.pipeline[stage] ?? 0}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                {cards.map((l) => {
+                  const nm = l.buyer?.user.name ?? l.buyer?.user.phone ?? 'Buyer';
+                  const phone = l.buyer?.user.phone ?? '';
+                  const next = NEXT[l.status];
+                  return (
+                    <div
+                      key={l.id}
+                      style={{
+                        background: '#fff',
+                        border: `1px solid ${C.border}`,
+                        borderRadius: 13,
+                        padding: 13,
+                      }}
+                    >
+                      <div
+                        style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}
+                      >
+                        <span
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: '50%',
+                            background: C.tint,
+                            color: C.indigo,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: 12,
+                            flex: '0 0 auto',
+                          }}
+                        >
+                          {nm.charAt(0).toUpperCase()}
+                        </span>
+                        <div
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 13.5,
+                            fontWeight: 700,
+                            color: C.text,
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {nm}
+                        </div>
+                        <span
+                          style={{
+                            background: C.tint,
+                            color: C.indigo,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {l.intent.replace('_', ' ').toLowerCase()}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 12.5,
+                          color: C.grey,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {l.vehicle?.make} {l.vehicle?.model} · {l.vehicle?.regNumber}
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          marginTop: 10,
+                          gap: 8,
+                        }}
+                      >
+                        {phone ? (
+                          <a
+                            href={`https://wa.me/${phone.replace(/[^0-9]/g, '')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 11.5, color: C.coral, fontWeight: 700 }}
+                          >
+                            WhatsApp →
+                          </a>
+                        ) : (
+                          <span />
+                        )}
+                        {next && (
+                          <button
+                            disabled={busy}
+                            onClick={() => advance(l.id, next)}
+                            style={{
+                              background: C.tint,
+                              color: C.indigo,
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '4px 10px',
+                              fontSize: 11.5,
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {STAGE_LABEL[next]} →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {cards.length === 0 && (
+                  <div style={{ color: C.grey, fontSize: 12.5, padding: '4px 6px' }}>—</div>
                 )}
               </div>
             </div>
           );
         })}
-        {data?.leads.length === 0 && <p style={{ color: 'var(--muted)' }}>No leads yet.</p>}
       </div>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main style={{ maxWidth: 760, margin: '0 auto', padding: '2.5rem 1.5rem' }}>{children}</main>
+    </section>
   );
 }
