@@ -6,7 +6,9 @@ import {
 } from '@nestjs/common';
 import {
   CommissionSource,
+  DrawdownStatus,
   FinanceStatus,
+  FloorPlanStatus,
   InsuranceStatus,
   Prisma,
   RcTransferStatus,
@@ -14,15 +16,20 @@ import {
 } from '@mana/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { DealersService } from '../dealers/dealers.service';
-import { computeEmi, decideEligibility } from './emi';
+import { computeEmi } from './emi';
+import { LenderService } from './lender.service';
+import { ESignService } from './esign.service';
 
 const RC_STEPS = ['form29', 'form30', 'noc', 'insurance_transfer'] as const;
+const DRAWDOWN_TERM_DAYS = 90;
 
 @Injectable()
 export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dealers: DealersService,
+    private readonly lender: LenderService,
+    private readonly esign: ESignService,
   ) {}
 
   private async ensureBuyer(userId: string): Promise<string> {
@@ -53,7 +60,7 @@ export class FinanceService {
   ) {
     const buyerId = await this.ensureBuyer(userId);
     const vehicle = await this.liveVehicle(vehicleId);
-    const decision = decideEligibility({ price: amount, downPayment, tenureMonths });
+    const decision = await this.lender.underwriteConsumer({ amount, downPayment, tenureMonths });
 
     const app = await this.prisma.financeApplication.create({
       data: {
@@ -64,22 +71,163 @@ export class FinanceService {
         downPayment,
         tenureMonths,
         partner: decision.partner,
+        partnerRef: decision.partnerRef,
         status: decision.approved ? FinanceStatus.APPROVED : FinanceStatus.REJECTED,
       },
     });
-
-    if (decision.approved) {
-      const loan = amount - downPayment;
-      await this.prisma.referralCommission.create({
-        data: {
-          sourceType: CommissionSource.FINANCE,
-          sourceId: app.id,
-          partner: decision.partner,
-          amount: Math.round(loan * 0.01), // 1% referral
-        },
-      });
-    }
+    // Referral commission accrues on disbursement (after eSign), not at approval.
     return { ...app, decisionReason: decision.reason };
+  }
+
+  private async ownedApplication(userId: string, appId: string) {
+    const buyerId = await this.ensureBuyer(userId);
+    const app = await this.prisma.financeApplication.findUnique({ where: { id: appId } });
+    if (!app || app.buyerId !== buyerId) throw new NotFoundException('Application not found');
+    return app;
+  }
+
+  /** Buyer e-signs the loan agreement for an approved application. */
+  async esignInitiate(userId: string, appId: string) {
+    const app = await this.ownedApplication(userId, appId);
+    if (app.status !== FinanceStatus.APPROVED) {
+      throw new BadRequestException('Only approved applications can be signed');
+    }
+    const req = await this.esign.createRequest({
+      applicationId: app.id,
+      documentTitle: 'Mana auto-loan agreement',
+    });
+    await this.prisma.financeApplication.update({
+      where: { id: app.id },
+      data: { esignRef: req.ref, esignStatus: 'PENDING' },
+    });
+    return { signUrl: req.signUrl, ref: req.ref, live: this.esign.isLive() };
+  }
+
+  /** Confirm the eSign callback → disburse and accrue the referral commission. */
+  async esignComplete(userId: string, appId: string, ref: string) {
+    const app = await this.ownedApplication(userId, appId);
+    if (app.status === FinanceStatus.DISBURSED) return app;
+    if (app.status !== FinanceStatus.APPROVED) {
+      throw new BadRequestException('Application is not awaiting signature');
+    }
+    const signed = await this.esign.confirm(app.id, ref);
+    if (!signed) throw new BadRequestException('Signature not completed');
+
+    const updated = await this.prisma.financeApplication.update({
+      where: { id: app.id },
+      data: {
+        esignStatus: 'SIGNED',
+        signedAt: new Date(),
+        status: FinanceStatus.DISBURSED,
+      },
+    });
+    await this.prisma.referralCommission.create({
+      data: {
+        sourceType: CommissionSource.FINANCE,
+        sourceId: app.id,
+        partner: app.partner ?? 'Partner Lender',
+        amount: Math.round((app.amount - app.downPayment) * 0.01), // 1% referral
+      },
+    });
+    return updated;
+  }
+
+  // ─── Dealer floor-plan (inventory) financing ───────────────────────────
+
+  async requestFloorPlan(userId: string, requestedLimit: number) {
+    const dealer = await this.dealers.getByUserOrThrow(userId);
+    const decision = await this.lender.underwriteFloorPlan({ requestedLimit });
+    return this.prisma.floorPlanFacility.upsert({
+      where: { dealerId: dealer.id },
+      update: {
+        lender: decision.lender,
+        creditLimit: decision.creditLimit,
+        interestApr: decision.interestApr,
+        partnerRef: decision.partnerRef,
+        status: decision.approved ? FloorPlanStatus.ACTIVE : FloorPlanStatus.SUSPENDED,
+      },
+      create: {
+        dealerId: dealer.id,
+        lender: decision.lender,
+        creditLimit: decision.creditLimit,
+        interestApr: decision.interestApr,
+        partnerRef: decision.partnerRef,
+        status: decision.approved ? FloorPlanStatus.ACTIVE : FloorPlanStatus.SUSPENDED,
+      },
+    });
+  }
+
+  async floorPlanSummary(userId: string) {
+    const dealer = await this.dealers.getByUserOrThrow(userId);
+    const facility = await this.prisma.floorPlanFacility.findUnique({
+      where: { dealerId: dealer.id },
+      include: { drawdowns: { orderBy: { drawnAt: 'desc' } } },
+    });
+    if (!facility) return null;
+    return { ...facility, available: facility.creditLimit - facility.outstanding };
+  }
+
+  /** Draw down against the facility to fund a vehicle in stock. */
+  async drawdown(userId: string, vehicleId: string, principal: number) {
+    const dealer = await this.dealers.getByUserOrThrow(userId);
+    const facility = await this.prisma.floorPlanFacility.findUnique({
+      where: { dealerId: dealer.id },
+    });
+    if (!facility || facility.status !== FloorPlanStatus.ACTIVE) {
+      throw new BadRequestException('No active floor-plan facility');
+    }
+    const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!vehicle || vehicle.dealerId !== dealer.id)
+      throw new ForbiddenException('Not your vehicle');
+    const available = facility.creditLimit - facility.outstanding;
+    if (principal <= 0 || principal > available) {
+      throw new BadRequestException(`Drawdown exceeds available credit (₹${available})`);
+    }
+    const [drawdown] = await this.prisma.$transaction([
+      this.prisma.floorPlanDrawdown.create({
+        data: {
+          facilityId: facility.id,
+          vehicleId,
+          principal,
+          dueAt: new Date(Date.now() + DRAWDOWN_TERM_DAYS * 86_400_000),
+        },
+      }),
+      this.prisma.floorPlanFacility.update({
+        where: { id: facility.id },
+        data: { outstanding: { increment: principal } },
+      }),
+    ]);
+    return drawdown;
+  }
+
+  /** Repay a drawdown (on sale); accrues simple interest for the holding period. */
+  async repayDrawdown(userId: string, drawdownId: string) {
+    const dealer = await this.dealers.getByUserOrThrow(userId);
+    const drawdown = await this.prisma.floorPlanDrawdown.findUnique({
+      where: { id: drawdownId },
+      include: { facility: true },
+    });
+    if (!drawdown || drawdown.facility.dealerId !== dealer.id) {
+      throw new NotFoundException('Drawdown not found');
+    }
+    if (drawdown.status === DrawdownStatus.REPAID) {
+      throw new BadRequestException('Already repaid');
+    }
+    const days = Math.max(1, Math.round((Date.now() - drawdown.drawnAt.getTime()) / 86_400_000));
+    const interest = Math.round(
+      (drawdown.principal * drawdown.facility.interestApr * days) / (100 * 365),
+    );
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.floorPlanDrawdown.update({
+        where: { id: drawdown.id },
+        data: { status: DrawdownStatus.REPAID, repaidAt: new Date(), interestAccrued: interest },
+      }),
+      this.prisma.floorPlanFacility.update({
+        where: { id: drawdown.facilityId },
+        data: { outstanding: { decrement: drawdown.principal } },
+      }),
+    ]);
+    return { ...updated, interestCharged: interest };
   }
 
   async listFinance(userId: string) {

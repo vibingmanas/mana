@@ -17,6 +17,16 @@ class ApplyFinanceDto {
 class QuoteDto {
   @IsString() vehicleId!: string;
 }
+class EsignCompleteDto {
+  @IsString() ref!: string;
+}
+class FloorPlanRequestDto {
+  @IsInt() @Min(50000) requestedLimit!: number;
+}
+class DrawdownDto {
+  @IsString() vehicleId!: string;
+  @IsInt() @Min(10000) principal!: number;
+}
 class RcOpenDto {
   @IsString() vehicleId!: string;
 }
@@ -59,6 +69,26 @@ export class FinanceController {
     return this.finance.listFinance(user.userId);
   }
 
+  @Post('finance/applications/:id/esign')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.BUYER)
+  esignInitiate(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.finance.esignInitiate(user.userId, id);
+  }
+
+  @Post('finance/applications/:id/esign/complete')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.BUYER)
+  esignComplete(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() dto: EsignCompleteDto,
+  ) {
+    return this.finance.esignComplete(user.userId, id, dto.ref);
+  }
+
   @Post('insurance/quotes')
   @HttpCode(201)
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -97,6 +127,38 @@ export class FinanceController {
   @Roles(UserRole.DEALER_OWNER)
   listRc(@CurrentUser() user: AuthUser) {
     return this.finance.listRcForDealer(user.userId);
+  }
+
+  // ── Dealer floor-plan financing ──
+  @Post('dealer/floor-plan/request')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DEALER_OWNER)
+  requestFloorPlan(@CurrentUser() user: AuthUser, @Body() dto: FloorPlanRequestDto) {
+    return this.finance.requestFloorPlan(user.userId, dto.requestedLimit);
+  }
+
+  @Get('dealer/floor-plan')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DEALER_OWNER)
+  floorPlan(@CurrentUser() user: AuthUser) {
+    return this.finance.floorPlanSummary(user.userId);
+  }
+
+  @Post('dealer/floor-plan/drawdown')
+  @HttpCode(201)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DEALER_OWNER)
+  drawdown(@CurrentUser() user: AuthUser, @Body() dto: DrawdownDto) {
+    return this.finance.drawdown(user.userId, dto.vehicleId, dto.principal);
+  }
+
+  @Post('dealer/floor-plan/drawdowns/:id/repay')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.DEALER_OWNER)
+  repay(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.finance.repayDrawdown(user.userId, id);
   }
 
   // ── Admin ──

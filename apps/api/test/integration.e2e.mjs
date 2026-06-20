@@ -355,5 +355,54 @@ const csrf = await call('/onboarding/aadhaar/digilocker/callback', {
 });
 ok(csrf.status === 400, 'digilocker rejects a state bound to another user (CSRF)');
 
+// consumer finance: apply -> eSign -> disbursed
+const app = await call('/finance/applications', {
+  method: 'POST',
+  body: { vehicleId: vid, amount: 500000, downPayment: 100000, tenureMonths: 48 },
+  token: bt,
+});
+ok(app.status === 201 && app.json.status === 'APPROVED', 'finance application approved');
+const esign = await call(`/finance/applications/${app.json.id}/esign`, {
+  method: 'POST',
+  token: bt,
+});
+ok(!!esign.json.ref && esign.json.live === false, 'eSign request created (mock)');
+const signed = await call(`/finance/applications/${app.json.id}/esign/complete`, {
+  method: 'POST',
+  body: { ref: esign.json.ref },
+  token: bt,
+});
+ok(signed.json.status === 'DISBURSED', 'eSign completed -> loan disbursed');
+
+// dealer floor-plan: request -> drawdown -> repay
+const fp = await call('/dealer/floor-plan/request', {
+  method: 'POST',
+  body: { requestedLimit: 2000000 },
+  token: dt,
+});
+ok(fp.json.status === 'ACTIVE' && fp.json.creditLimit === 2000000, 'floor-plan facility activated');
+const draw = await call('/dealer/floor-plan/drawdown', {
+  method: 'POST',
+  body: { vehicleId: vid, principal: 400000 },
+  token: dt,
+});
+ok(draw.status === 201, 'drawdown against facility');
+ok(
+  (await call('/dealer/floor-plan', { token: dt })).json.available === 1600000,
+  'available credit reduced by drawdown',
+);
+const repaid = await call(`/dealer/floor-plan/drawdowns/${draw.json.id}/repay`, {
+  method: 'POST',
+  token: dt,
+});
+ok(
+  repaid.json.status === 'REPAID' && repaid.json.interestCharged >= 0,
+  'drawdown repaid with interest',
+);
+ok(
+  (await call('/dealer/floor-plan', { token: dt })).json.available === 2000000,
+  'credit restored after repayment',
+);
+
 console.log(`\n${failures === 0 ? 'ALL PASSED' : failures + ' FAILURE(S)'}`);
 process.exit(failures === 0 ? 0 : 1);

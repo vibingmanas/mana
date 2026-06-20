@@ -347,6 +347,7 @@ model Dealer {
   invoices            Invoice[]
   staff               DealerStaff[]
   syndication         SyndicationTarget[]
+  floorPlan           FloorPlanFacility?
 
   @@index([status])
   @@index([verificationTier])
@@ -576,11 +577,58 @@ model FinanceApplication {
   partner      String?
   status       FinanceStatus @default(APPLIED)
   partnerRef   String?
+  esignRef     String?
+  esignStatus  String? // PENDING | SIGNED | DECLINED
+  signedAt     DateTime?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
   @@index([buyerId])
   @@index([dealerId, status])
+}
+
+enum FloorPlanStatus {
+  REQUESTED
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+enum DrawdownStatus {
+  OUTSTANDING
+  REPAID
+}
+
+// Dealer inventory (floor-plan) financing: a lender funds stock up to a limit;
+// the dealer draws down per vehicle and repays on sale (plan 09).
+model FloorPlanFacility {
+  id           String              @id @default(cuid())
+  dealerId     String              @unique
+  dealer       Dealer              @relation(fields: [dealerId], references: [id], onDelete: Cascade)
+  lender       String
+  creditLimit  Int                 @default(0)
+  outstanding  Int                 @default(0)
+  interestApr  Float               @default(18)
+  status       FloorPlanStatus     @default(REQUESTED)
+  partnerRef   String?
+  drawdowns    FloorPlanDrawdown[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model FloorPlanDrawdown {
+  id              String            @id @default(cuid())
+  facilityId      String
+  facility        FloorPlanFacility @relation(fields: [facilityId], references: [id], onDelete: Cascade)
+  vehicleId       String
+  principal       Int
+  interestAccrued Int               @default(0)
+  status          DrawdownStatus    @default(OUTSTANDING)
+  drawnAt         DateTime          @default(now())
+  dueAt           DateTime?
+  repaidAt        DateTime?
+
+  @@index([facilityId, status])
 }
 
 model InsurancePolicy {
