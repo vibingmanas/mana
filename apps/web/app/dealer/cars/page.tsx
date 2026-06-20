@@ -130,6 +130,30 @@ function CarRow({
         >
           Verify RC
         </button>
+        <button
+          style={smBtn}
+          disabled={busy}
+          onClick={() =>
+            run(() => api(`/vehicles/${car.id}/odometer-check`, { method: 'POST', auth: true }))
+          }
+        >
+          Odometer check
+        </button>
+        <button
+          style={smBtn}
+          disabled={busy}
+          onClick={() =>
+            run(() =>
+              api(`/vehicles/${car.id}/inspect`, {
+                method: 'POST',
+                body: { type: 'AI_PHOTO' },
+                auth: true,
+              }),
+            )
+          }
+        >
+          AI inspect
+        </button>
         <input
           value={price}
           onChange={(e) => setPrice(e.target.value)}
