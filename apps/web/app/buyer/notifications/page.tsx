@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import SiteHeader from '../../components/site-header';
 import { api, getToken, type ApiError } from '../../../lib/api';
+import { C, display, h1, card } from '../../../lib/ds';
 
 interface Notif {
   id: string;
@@ -13,7 +15,6 @@ interface Notif {
   read: boolean;
   createdAt: string;
 }
-
 const errMsg = (e: unknown) => (e as ApiError)?.message ?? 'Something went wrong';
 
 export default function BuyerNotifications() {
@@ -37,71 +38,75 @@ export default function BuyerNotifications() {
     await load();
   }
 
-  if (authed === null) return <Shell>Loading…</Shell>;
-  if (!authed)
-    return (
-      <Shell>
-        <p>
-          Sign in from any <Link href="/listings">listing</Link> to see your alerts.
-        </p>
-      </Shell>
-    );
-
   return (
-    <Shell>
-      <h1>
-        Notifications {unread > 0 && <span style={{ color: 'var(--accent)' }}>({unread})</span>}
-      </h1>
-      {error && <p style={{ color: '#f87171' }}>{error}</p>}
-      <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-        {items.map((n) => (
-          <div
-            key={n.id}
-            style={{
-              background: 'var(--card)',
-              borderRadius: 12,
-              padding: '1rem',
-              opacity: n.read ? 0.6 : 1,
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <strong>{n.title}</strong>
-              <span style={{ color: 'var(--muted)', fontSize: 12 }}>
-                {new Date(n.createdAt).toLocaleString('en-IN')}
-              </span>
+    <div style={{ overflowX: 'hidden' }}>
+      <SiteHeader />
+      <main
+        style={{
+          maxWidth: 640,
+          margin: '0 auto',
+          padding: 'clamp(20px,3vw,32px) clamp(16px,4vw,40px) 80px',
+        }}
+      >
+        {authed === null ? (
+          <p style={{ color: C.grey }}>Loading…</p>
+        ) : !authed ? (
+          <p style={{ color: C.grey }}>
+            Sign in from any{' '}
+            <Link href="/listings" style={{ color: C.coral }}>
+              listing
+            </Link>{' '}
+            to see your alerts.
+          </p>
+        ) : (
+          <>
+            <h1 style={h1}>
+              Notifications {unread > 0 && <span style={{ color: C.coral }}>({unread})</span>}
+            </h1>
+            {error && <p style={{ color: C.coralDark }}>{error}</p>}
+            <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+              {items.map((n) => (
+                <div key={n.id} style={{ ...card, opacity: n.read ? 0.65 : 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <strong style={{ fontFamily: display, color: C.indigo }}>{n.title}</strong>
+                    <span style={{ color: C.grey, fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {new Date(n.createdAt).toLocaleDateString('en-IN')}
+                    </span>
+                  </div>
+                  <p style={{ color: C.grey, margin: '6px 0' }}>{n.body}</p>
+                  <div style={{ display: 'flex', gap: 14 }}>
+                    {n.vehicleId && (
+                      <Link
+                        href={`/listings/${n.vehicleId}`}
+                        style={{ fontSize: 13, color: C.coral }}
+                      >
+                        View car →
+                      </Link>
+                    )}
+                    {!n.read && (
+                      <button
+                        onClick={() => markRead(n.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: C.indigo,
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          padding: 0,
+                        }}
+                      >
+                        Mark read
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {items.length === 0 && <p style={{ color: C.grey }}>No notifications yet.</p>}
             </div>
-            <p style={{ color: 'var(--muted)', margin: '6px 0' }}>{n.body}</p>
-            <div style={{ display: 'flex', gap: 12 }}>
-              {n.vehicleId && (
-                <Link href={`/listings/${n.vehicleId}`} style={{ fontSize: 13 }}>
-                  View car →
-                </Link>
-              )}
-              {!n.read && (
-                <button
-                  onClick={() => markRead(n.id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--accent)',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                  }}
-                >
-                  Mark read
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-        {items.length === 0 && <p style={{ color: 'var(--muted)' }}>No notifications yet.</p>}
-      </div>
-    </Shell>
-  );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main style={{ maxWidth: 640, margin: '0 auto', padding: '2.5rem 1.5rem' }}>{children}</main>
+          </>
+        )}
+      </main>
+    </div>
   );
 }
