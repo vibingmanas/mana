@@ -11,7 +11,10 @@ RUN pnpm install --frozen-lockfile
 # Render passes service env vars as build args automatically.
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-RUN pnpm --filter @mana/web build
+# Cap the heap so V8 GCs before the free-tier 512MB cgroup OOM-kills the build,
+# and skip telemetry. (A `next build` OOM is the usual cause of a stuck deploy.)
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN NODE_OPTIONS=--max-old-space-size=448 pnpm --filter @mana/web build
 
 ENV NODE_ENV=production
 # Render injects PORT; web start script honours it.
