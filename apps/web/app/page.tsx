@@ -1237,6 +1237,10 @@ export default async function Home() {
           For dealers
         </Link>{' '}
         ·{' '}
+        <Link href="/inspector" style={{ color: C.grey }}>
+          Inspector
+        </Link>{' '}
+        ·{' '}
         <Link href="/admin" style={{ color: C.grey }}>
           Admin
         </Link>
