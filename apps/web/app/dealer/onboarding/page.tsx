@@ -248,6 +248,27 @@ function StepForms({
       await refreshStatus();
     });
 
+  const digilocker = () =>
+    run(async () => {
+      const r = await api<{ consentUrl: string; state: string; live: boolean }>(
+        '/onboarding/aadhaar/digilocker/initiate',
+        { method: 'POST', auth: true },
+      );
+      if (r.live) {
+        // Real flow: hand off to DigiLocker's consent page.
+        window.location.href = r.consentUrl;
+        return;
+      }
+      // Mock flow: the consent URL already carries a code — complete in place.
+      const code = new URL(r.consentUrl).searchParams.get('code') ?? '';
+      await api('/onboarding/aadhaar/digilocker/callback', {
+        method: 'POST',
+        body: { code, state: r.state },
+        auth: true,
+      });
+      await refreshStatus();
+    });
+
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <Card title="Email">
@@ -291,13 +312,18 @@ function StepForms({
           placeholder="12-digit Aadhaar"
           style={input}
         />
-        <button
-          style={{ ...btnPrimary, marginTop: 12 }}
-          disabled={busy}
-          onClick={() => submit('/onboarding/aadhaar', { aadhaarNumber: aadhaar })}
-        >
-          Verify Aadhaar
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          <button style={btnInk} disabled={busy} onClick={digilocker}>
+            Verify with DigiLocker
+          </button>
+          <button
+            style={btnPrimary}
+            disabled={busy || aadhaar.length !== 12}
+            onClick={() => submit('/onboarding/aadhaar', { aadhaarNumber: aadhaar })}
+          >
+            Verify Aadhaar
+          </button>
+        </div>
       </Card>
 
       <Card title="PAN">
