@@ -15,6 +15,24 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  apps/agent:
+    devDependencies:
+      '@swc-node/register':
+        specifier: ^1.10.9
+        version: 1.11.1(@swc/core@1.15.41)(@swc/types@0.1.27)(typescript@5.9.3)
+      '@swc/core':
+        specifier: ^1.10.7
+        version: 1.15.41
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.21
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.19.21)
+
   apps/api:
     dependencies:
       '@aws-sdk/client-s3':
