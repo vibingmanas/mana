@@ -517,8 +517,11 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
               >
                 Verified against VAHAN
               </h2>
-              <p style={{ margin: '0 0 18px', color: C.grey, fontSize: 15 }}>
-                No surprises after you buy.
+              <p style={{ margin: '0 0 14px', color: C.grey, fontSize: 15 }}>
+                No surprises after you buy.{' '}
+                <Link href={`/listings/${id}/history`} style={{ color: C.coral, fontWeight: 600 }}>
+                  View full history report →
+                </Link>
               </p>
               <div
                 style={{
@@ -754,6 +757,17 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
                   ₹{monthly.toLocaleString('en-IN')}
                   <span style={{ fontSize: 15, fontWeight: 700, color: C.grey }}> /mo</span>
                 </div>
+                <Link
+                  href={`/listings/${id}/finance`}
+                  style={{
+                    color: C.coral,
+                    fontWeight: 700,
+                    fontSize: 13.5,
+                    textDecoration: 'none',
+                  }}
+                >
+                  Apply for finance →
+                </Link>
               </div>
 
               <div style={{ marginTop: 18 }}>
