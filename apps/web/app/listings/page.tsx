@@ -10,10 +10,16 @@ interface Card {
   model: string | null;
   manufactureYear: number | null;
   odometerKm: number | null;
+  ownersCount: number | null;
   price: number | null;
   city: string | null;
+  state: string | null;
   fuelType: string | null;
+  source: string | null;
   dealScore: number | null;
+  fairPriceLabel: string | null;
+  riskBand: string | null;
+  accidentFree: boolean | null;
   media: { url: string }[];
   certification: { tier: string } | null;
 }
@@ -21,16 +27,47 @@ interface Result {
   total: number;
   items: Card[];
 }
+interface Facet {
+  value: string;
+  count: number;
+}
+interface Facets {
+  states: Facet[];
+  makes: Facet[];
+  bodyTypes: Facet[];
+  sources: Facet[];
+}
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
 async function search(params: Record<string, string>): Promise<Result> {
-  const base = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
   const qs = new URLSearchParams(params).toString();
   try {
-    const res = await fetch(`${base}/api/listings${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
+    const res = await fetch(`${API}/api/listings${qs ? `?${qs}` : ''}`, { cache: 'no-store' });
     if (!res.ok) return { total: 0, items: [] };
     return (await res.json()) as Result;
   } catch {
     return { total: 0, items: [] };
+  }
+}
+async function getFacets(): Promise<Facets> {
+  try {
+    const res = await fetch(`${API}/api/listings/facets`, { cache: 'no-store' });
+    if (!res.ok) return { states: [], makes: [], bodyTypes: [], sources: [] };
+    return (await res.json()) as Facets;
+  } catch {
+    return { states: [], makes: [], bodyTypes: [], sources: [] };
+  }
+}
+async function getCities(state: string): Promise<Facet[]> {
+  try {
+    const res = await fetch(`${API}/api/listings/cities?state=${encodeURIComponent(state)}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    return (await res.json()) as Facet[];
+  } catch {
+    return [];
   }
 }
 
@@ -42,12 +79,32 @@ function emiFrom(price: number | null): string {
   const m = Math.round((loan * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
   return `EMI ₹${m.toLocaleString('en-IN')}/mo`;
 }
-function deal(score: number | null): string {
-  if (score == null) return 'Fair price';
-  if (score >= 0.08) return 'Great deal';
-  if (score >= -0.05) return 'Fair price';
-  return 'Above market';
-}
+const FPI_LABEL: Record<string, string> = {
+  UNDERPRICED: 'Underpriced',
+  FAIR: 'Fair price',
+  OVERPRICED: 'Above market',
+};
+const FPI_COLOR: Record<string, string> = {
+  UNDERPRICED: '#3B6B45',
+  FAIR: C.indigo,
+  OVERPRICED: C.coralDark,
+};
+const RISK_LABEL: Record<string, string> = {
+  LOW: 'Low risk',
+  MODERATE: 'Moderate',
+  HIGH: 'High risk',
+};
+const RISK_COLOR: Record<string, string> = {
+  LOW: '#3B6B45',
+  MODERATE: '#9A6B00',
+  HIGH: C.coralDark,
+};
+const SOURCE_LABEL: Record<string, string> = {
+  DEALER: 'Dealer',
+  INDIVIDUAL: 'Owner',
+  AUCTION: 'Auction',
+  PLATFORM: 'Platform',
+};
 const CERT: Record<string, string> = {
   SELF_DECLARED: 'Listed',
   AI_CHECKED: 'AI-checked',
@@ -62,7 +119,45 @@ const BUDGETS = [
   { label: '₹10L – ₹15L', min: '1000000', max: '1500000' },
   { label: '₹15L +', min: '1500000', max: '' },
 ];
-const FUELS = ['', 'Petrol', 'Diesel'];
+const FUELS = ['', 'Petrol', 'Diesel', 'CNG', 'Electric'];
+const TRANSMISSIONS = ['', 'Manual', 'Automatic'];
+const OWNERS = [
+  { label: 'Any', v: '' },
+  { label: '1st owner', v: '1' },
+  { label: '≤ 2 owners', v: '2' },
+];
+const YEARS = [
+  { label: 'Any age', v: '' },
+  { label: '2020 +', v: '2020' },
+  { label: '2018 +', v: '2018' },
+  { label: '2015 +', v: '2015' },
+];
+const KMS = [
+  { label: 'Any km', v: '' },
+  { label: '≤ 30k', v: '30000' },
+  { label: '≤ 60k', v: '60000' },
+  { label: '≤ 1L', v: '100000' },
+];
+const PASS_KEYS = [
+  'make',
+  'model',
+  'city',
+  'state',
+  'fuelType',
+  'transmission',
+  'bodyType',
+  'source',
+  'minPrice',
+  'maxPrice',
+  'maxOwners',
+  'minYear',
+  'maxKm',
+  'luxury',
+  'verifiedOnly',
+  'accidentFree',
+  'riskBand',
+  'sort',
+];
 
 export default async function Listings({
   searchParams,
@@ -71,9 +166,13 @@ export default async function Listings({
 }) {
   const sp = await searchParams;
   const params: Record<string, string> = {};
-  for (const k of ['make', 'model', 'city', 'fuelType', 'minPrice', 'maxPrice', 'sort'])
-    if (sp[k]) params[k] = sp[k];
-  const { total, items } = await search(params);
+  for (const k of PASS_KEYS) if (sp[k]) params[k] = sp[k];
+
+  const [{ total, items }, facets, cities] = await Promise.all([
+    search(params),
+    getFacets(),
+    sp.state ? getCities(sp.state) : Promise.resolve([] as Facet[]),
+  ]);
 
   const pill = (active: boolean): React.CSSProperties => ({
     display: 'inline-block',
@@ -81,8 +180,8 @@ export default async function Listings({
     background: active ? C.indigo : '#fff',
     color: active ? C.cream : C.indigo,
     borderRadius: 11,
-    padding: '9px 13px',
-    fontSize: 13.5,
+    padding: '8px 12px',
+    fontSize: 13,
     fontWeight: 700,
     textDecoration: 'none',
   });
@@ -91,6 +190,25 @@ export default async function Listings({
     Object.keys(next).forEach((k) => next[k] === '' && delete next[k]);
     return `/listings?${new URLSearchParams(next).toString()}`;
   };
+  const toggle = (key: string) => withParam({ [key]: sp[key] === 'true' ? '' : 'true' });
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          fontSize: 11.5,
+          fontWeight: 700,
+          letterSpacing: '.1em',
+          textTransform: 'uppercase',
+          color: C.grey,
+          marginBottom: 10,
+        }}
+      >
+        {title}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>{children}</div>
+    </div>
+  );
 
   return (
     <div style={{ overflowX: 'hidden' }}>
@@ -113,10 +231,10 @@ export default async function Listings({
               color: C.indigo,
             }}
           >
-            Used cars{sp.make ? ` · ${sp.make}` : ''}
+            Used cars{sp.state ? ` · ${sp.state}` : ' · all India'}
           </h1>
           <p style={{ margin: '6px 0 0', color: C.grey, fontSize: 15 }}>
-            {total} inspected cars · transparent on-road pricing · 7-day returns
+            {total} cars across dealers, owners &amp; auctions · fair-price &amp; risk on every car
           </p>
         </div>
 
@@ -128,7 +246,7 @@ export default async function Listings({
             alignItems: 'flex-start',
           }}
         >
-          <aside style={{ flex: '1 1 230px', maxWidth: 280, minWidth: 220 }}>
+          <aside style={{ flex: '1 1 240px', maxWidth: 290, minWidth: 230 }}>
             <div
               style={{
                 display: 'flex',
@@ -152,7 +270,7 @@ export default async function Listings({
               <input
                 name="make"
                 defaultValue={sp.make ?? ''}
-                placeholder="Make or model"
+                placeholder="Search make or model"
                 style={{
                   width: '100%',
                   border: `1px solid ${C.border}`,
@@ -165,46 +283,142 @@ export default async function Listings({
               />
             </form>
 
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                letterSpacing: '.1em',
-                textTransform: 'uppercase',
-                color: C.grey,
-                marginBottom: 11,
-              }}
-            >
-              Budget
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 22 }}>
-              {BUDGETS.map((b) => {
-                const active = (sp.minPrice ?? '') === b.min && (sp.maxPrice ?? '') === b.max;
-                return (
-                  <Link
-                    key={b.label}
-                    href={withParam({ minPrice: b.min, maxPrice: b.max })}
-                    style={pill(active)}
-                  >
-                    {b.label}
+            {/* Location drill-down: state → city */}
+            <Section title={sp.state ? `${sp.state} · city` : 'Location · state'}>
+              {!sp.state ? (
+                <>
+                  <Link href={withParam({ state: '', city: '' })} style={pill(!sp.state)}>
+                    All India
                   </Link>
-                );
-              })}
-            </div>
+                  {facets.states.slice(0, 8).map((s) => (
+                    <Link
+                      key={s.value}
+                      href={withParam({ state: s.value, city: '' })}
+                      style={pill(false)}
+                    >
+                      {s.value} ({s.count})
+                    </Link>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <Link href={withParam({ state: '', city: '' })} style={pill(false)}>
+                    ← All India
+                  </Link>
+                  <Link href={withParam({ city: '' })} style={pill(!sp.city)}>
+                    All {sp.state}
+                  </Link>
+                  {cities.map((c) => (
+                    <Link
+                      key={c.value}
+                      href={withParam({ city: c.value })}
+                      style={pill(sp.city === c.value)}
+                    >
+                      {c.value} ({c.count})
+                    </Link>
+                  ))}
+                </>
+              )}
+            </Section>
 
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 700,
-                letterSpacing: '.1em',
-                textTransform: 'uppercase',
-                color: C.grey,
-                marginBottom: 11,
-              }}
-            >
-              Fuel
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+            {/* Quick toggles */}
+            <Section title="Trust & type">
+              <Link href={toggle('verifiedOnly')} style={pill(sp.verifiedOnly === 'true')}>
+                Verified only
+              </Link>
+              <Link href={toggle('accidentFree')} style={pill(sp.accidentFree === 'true')}>
+                Accident-free
+              </Link>
+              <Link href={toggle('luxury')} style={pill(sp.luxury === 'true')}>
+                Luxury
+              </Link>
+              <Link
+                href={withParam({ source: sp.source === 'AUCTION' ? '' : 'AUCTION' })}
+                style={pill(sp.source === 'AUCTION')}
+              >
+                Auctions
+              </Link>
+            </Section>
+
+            <Section title="Seller">
+              <Link href={withParam({ source: '' })} style={pill(!sp.source)}>
+                Any
+              </Link>
+              {facets.sources.map((s) => (
+                <Link
+                  key={s.value}
+                  href={withParam({ source: s.value })}
+                  style={pill(sp.source === s.value)}
+                >
+                  {SOURCE_LABEL[s.value] ?? s.value}
+                </Link>
+              ))}
+            </Section>
+
+            <Section title="Budget">
+              {BUDGETS.map((b) => (
+                <Link
+                  key={b.label}
+                  href={withParam({ minPrice: b.min, maxPrice: b.max })}
+                  style={pill((sp.minPrice ?? '') === b.min && (sp.maxPrice ?? '') === b.max)}
+                >
+                  {b.label}
+                </Link>
+              ))}
+            </Section>
+
+            <Section title="Owners">
+              {OWNERS.map((o) => (
+                <Link
+                  key={o.label}
+                  href={withParam({ maxOwners: o.v })}
+                  style={pill((sp.maxOwners ?? '') === o.v)}
+                >
+                  {o.label}
+                </Link>
+              ))}
+            </Section>
+
+            <Section title="Year">
+              {YEARS.map((y) => (
+                <Link
+                  key={y.label}
+                  href={withParam({ minYear: y.v })}
+                  style={pill((sp.minYear ?? '') === y.v)}
+                >
+                  {y.label}
+                </Link>
+              ))}
+            </Section>
+
+            <Section title="Kilometres">
+              {KMS.map((k) => (
+                <Link
+                  key={k.label}
+                  href={withParam({ maxKm: k.v })}
+                  style={pill((sp.maxKm ?? '') === k.v)}
+                >
+                  {k.label}
+                </Link>
+              ))}
+            </Section>
+
+            <Section title="Body">
+              <Link href={withParam({ bodyType: '' })} style={pill(!sp.bodyType)}>
+                Any
+              </Link>
+              {facets.bodyTypes.map((b) => (
+                <Link
+                  key={b.value}
+                  href={withParam({ bodyType: b.value })}
+                  style={pill(sp.bodyType === b.value)}
+                >
+                  {b.value}
+                </Link>
+              ))}
+            </Section>
+
+            <Section title="Fuel">
               {FUELS.map((f) => (
                 <Link
                   key={f || 'any'}
@@ -214,7 +428,19 @@ export default async function Listings({
                   {f || 'Any'}
                 </Link>
               ))}
-            </div>
+            </Section>
+
+            <Section title="Transmission">
+              {TRANSMISSIONS.map((t) => (
+                <Link
+                  key={t || 'any'}
+                  href={withParam({ transmission: t })}
+                  style={pill((sp.transmission ?? '') === t)}
+                >
+                  {t || 'Any'}
+                </Link>
+              ))}
+            </Section>
           </aside>
 
           <div style={{ flex: '999 1 380px', minWidth: 300 }}>
@@ -231,12 +457,13 @@ export default async function Listings({
               <span style={{ fontSize: 14, color: C.grey, fontWeight: 600 }}>
                 <b style={{ color: C.text, fontWeight: 800 }}>{total}</b> results
               </span>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {[
                   ['recent', 'Newest'],
                   ['price_asc', 'Price ↑'],
                   ['price_desc', 'Price ↓'],
                   ['deal', 'Best deals'],
+                  ['risk', 'Lowest risk'],
                 ].map(([v, l]) => (
                   <Link
                     key={v}
@@ -325,17 +552,32 @@ export default async function Listings({
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       )}
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 12,
+                          left: 12,
+                          background: 'rgba(31,39,71,.9)',
+                          color: C.cream,
+                          fontWeight: 700,
+                          fontSize: 11,
+                          padding: '5px 10px',
+                          borderRadius: 999,
+                        }}
+                      >
+                        {SOURCE_LABEL[c.source ?? 'DEALER'] ?? 'Dealer'}
+                      </span>
                       {c.certification && (
                         <span
                           style={{
                             position: 'absolute',
                             top: 12,
-                            left: 12,
+                            right: 12,
                             background: 'rgba(255,255,255,.94)',
                             color: C.indigo,
                             fontWeight: 700,
-                            fontSize: 11.5,
-                            padding: '6px 11px',
+                            fontSize: 11,
+                            padding: '5px 10px',
                             borderRadius: 999,
                           }}
                         >
@@ -362,18 +604,67 @@ export default async function Listings({
                         {c.manufactureYear} {c.make} {c.model}
                       </div>
                       <div style={{ fontSize: 13.5, color: C.grey, marginTop: 6 }}>
-                        {c.city}
+                        {c.city ?? c.state}
                         {c.odometerKm ? ` · ${(c.odometerKm / 1000).toFixed(0)}k km` : ''}
+                        {c.ownersCount ? ` · ${c.ownersCount} own.` : ''}
                         {c.fuelType ? ` · ${c.fuelType}` : ''}
+                      </div>
+                      {/* Intel chips */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
+                        {c.fairPriceLabel && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '4px 9px',
+                              borderRadius: 999,
+                              background: '#fff',
+                              border: `1px solid ${C.border}`,
+                              color: FPI_COLOR[c.fairPriceLabel] ?? C.indigo,
+                            }}
+                          >
+                            {FPI_LABEL[c.fairPriceLabel] ?? 'Fair price'}
+                          </span>
+                        )}
+                        {c.riskBand && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '4px 9px',
+                              borderRadius: 999,
+                              background: '#fff',
+                              border: `1px solid ${C.border}`,
+                              color: RISK_COLOR[c.riskBand] ?? C.grey,
+                            }}
+                          >
+                            {RISK_LABEL[c.riskBand] ?? c.riskBand}
+                          </span>
+                        )}
+                        {c.accidentFree === true && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              padding: '4px 9px',
+                              borderRadius: 999,
+                              background: '#fff',
+                              border: `1px solid ${C.border}`,
+                              color: '#3B6B45',
+                            }}
+                          >
+                            Accident-free
+                          </span>
+                        )}
                       </div>
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'flex-end',
                           justifyContent: 'space-between',
-                          marginTop: 15,
-                          gap: 10,
+                          marginTop: 'auto',
                           paddingTop: 14,
+                          gap: 10,
                           borderTop: `1px solid ${C.border}`,
                         }}
                       >
@@ -390,20 +681,6 @@ export default async function Listings({
                           </div>
                           <div style={{ fontSize: 12.5, color: C.grey }}>{emiFrom(c.price)}</div>
                         </div>
-                        <span
-                          style={{
-                            background: C.cream,
-                            border: `1px solid ${C.border}`,
-                            color: C.indigo,
-                            fontWeight: 700,
-                            fontSize: 11.5,
-                            padding: '5px 11px',
-                            borderRadius: 999,
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {deal(c.dealScore)}
-                        </span>
                       </div>
                     </div>
                   </Link>
