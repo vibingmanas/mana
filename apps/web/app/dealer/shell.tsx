@@ -15,6 +15,7 @@ const TABS = [
   { href: '/dealer/cars', label: 'Inventory' },
   { href: '/dealer/leads', label: 'Leads' },
   { href: '/dealer/appointments', label: 'Appointments' },
+  { href: '/dealer/intelligence', label: 'Intelligence' },
   { href: '/dealer/tools', label: 'Tools' },
   { href: '/dealer/staff', label: 'Staff' },
   { href: '/dealer/financing', label: 'Financing' },

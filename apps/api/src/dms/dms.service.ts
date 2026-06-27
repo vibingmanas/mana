@@ -40,6 +40,79 @@ export class DmsService {
     private readonly dealers: DealersService,
   ) {}
 
+  /** Boost a listing to the top of search for 7 days (dealer monetization). */
+  async boostListing(userId: string, vehicleId: string) {
+    const dealer = await this.dealers.getByUserOrThrow(userId);
+    const v = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
+    if (!v || v.dealerId !== dealer.id) throw new NotFoundException('Not your vehicle');
+    return this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: { boostedUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+    });
+  }
+
+  /**
+   * Market-intelligence dashboard: how the dealer's prices sit vs market, lead
+   * demand by model, and the competitor price envelope for the models they stock.
+   */
+  async intelligence(userId: string) {
+    const dealer = await this.dealers.getByUserOrThrow(userId);
+    const stock = await this.prisma.vehicle.findMany({
+      where: { dealerId: dealer.id, status: VehicleStatus.LIVE },
+      select: { make: true, model: true, price: true, valuationFair: true, fairPriceLabel: true },
+    });
+
+    // Pricing position vs fair value.
+    const priced = stock.filter((s) => s.price && s.valuationFair);
+    const overpriced = priced.filter((s) => (s.price ?? 0) > (s.valuationFair ?? 0) * 1.1).length;
+    const underpriced = priced.filter((s) => (s.price ?? 0) < (s.valuationFair ?? 0) * 0.9).length;
+
+    // Demand: leads by model for this dealer.
+    const leads = await this.prisma.lead.findMany({
+      where: { dealerId: dealer.id },
+      select: { vehicle: { select: { make: true, model: true } } },
+    });
+    const demandMap = new Map<string, number>();
+    for (const l of leads) {
+      const k = `${l.vehicle?.make ?? '?'} ${l.vehicle?.model ?? ''}`.trim();
+      demandMap.set(k, (demandMap.get(k) ?? 0) + 1);
+    }
+    const demand = [...demandMap.entries()]
+      .map(([model, leadCount]) => ({ model, leadCount }))
+      .sort((a, b) => b.leadCount - a.leadCount)
+      .slice(0, 8);
+
+    // Competitor price envelope for the models the dealer stocks (all live cars).
+    const models = [...new Set(stock.map((s) => s.model).filter(Boolean))].slice(0, 8) as string[];
+    const envelope = await Promise.all(
+      models.map(async (model) => {
+        const agg = await this.prisma.vehicle.aggregate({
+          where: { model, status: VehicleStatus.LIVE, price: { not: null } },
+          _min: { price: true },
+          _max: { price: true },
+          _avg: { price: true },
+          _count: { _all: true },
+        });
+        const mine = stock.find((s) => s.model === model)?.price ?? null;
+        return {
+          model,
+          min: agg._min.price,
+          avg: agg._avg.price ? Math.round(agg._avg.price) : null,
+          max: agg._max.price,
+          count: agg._count._all,
+          yourPrice: mine,
+        };
+      }),
+    );
+
+    return {
+      stockCount: stock.length,
+      pricing: { overpriced, underpriced, fair: priced.length - overpriced - underpriced },
+      demand,
+      envelope,
+    };
+  }
+
   async listLeads(userId: string, status?: LeadStatus) {
     const dealer = await this.dealers.getByUserOrThrow(userId);
     const leads = await this.prisma.lead.findMany({

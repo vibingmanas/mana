@@ -62,6 +62,18 @@ export class DmsController {
     return this.dms.updateLead(user.userId, id, dto);
   }
 
+  // ── Market intelligence + boost ──
+  @Get('intelligence')
+  intelligence(@CurrentUser() user: AuthUser) {
+    return this.dms.intelligence(user.userId);
+  }
+
+  @Post('cars/:id/boost')
+  @HttpCode(200)
+  boost(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.dms.boostListing(user.userId, id);
+  }
+
   // ── Staff roster (owner-only, enforced in service) ──
   @Get('staff')
   listStaff(@CurrentUser() user: AuthUser) {

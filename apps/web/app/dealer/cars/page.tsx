@@ -197,6 +197,15 @@ export default function DealerCars() {
                     style={btnGhost}
                     disabled={busy}
                     onClick={() =>
+                      run(() => api(`/dealer/cars/${c.id}/boost`, { method: 'POST', auth: true }))
+                    }
+                  >
+                    Boost
+                  </button>
+                  <button
+                    style={btnGhost}
+                    disabled={busy}
+                    onClick={() =>
                       run(() =>
                         api(`/vehicles/${c.id}/status`, {
                           method: 'POST',
