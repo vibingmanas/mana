@@ -116,6 +116,48 @@ export class SellService {
     return this.get(userId, id);
   }
 
+  /** Seller counters an offer; the dealer meets roughly halfway and re-opens it. */
+  async renegotiateOffer(
+    userId: string,
+    id: string,
+    offerId: string,
+    counterAmount: number,
+    comment?: string,
+  ) {
+    await this.owned(userId, id);
+    const offer = await this.prisma.dealerOffer.findUnique({ where: { id: offerId } });
+    if (!offer || offer.sellRequestId !== id) throw new NotFoundException('Offer not found');
+    if (counterAmount <= offer.amount) {
+      throw new BadRequestException('Counter must be higher than the current offer');
+    }
+    const revised = Math.min(
+      counterAmount,
+      Math.round((offer.amount + counterAmount) / 2000) * 1000,
+    );
+    await this.prisma.dealerOffer.update({
+      where: { id: offerId },
+      data: {
+        amount: revised,
+        counterAmount,
+        sellerComment: comment ?? null,
+        dealerComment: `Revised after your counter of ₹${counterAmount.toLocaleString('en-IN')}.`,
+        status: OfferStatus.OPEN,
+      },
+    });
+    return this.get(userId, id);
+  }
+
+  async rejectOffer(userId: string, id: string, offerId: string, comment?: string) {
+    await this.owned(userId, id);
+    const offer = await this.prisma.dealerOffer.findUnique({ where: { id: offerId } });
+    if (!offer || offer.sellRequestId !== id) throw new NotFoundException('Offer not found');
+    await this.prisma.dealerOffer.update({
+      where: { id: offerId },
+      data: { status: OfferStatus.REJECTED, sellerComment: comment ?? null },
+    });
+    return this.get(userId, id);
+  }
+
   async get(userId: string, id: string) {
     await this.owned(userId, id);
     return this.prisma.sellRequest.findUnique({
