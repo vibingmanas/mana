@@ -159,22 +159,13 @@ export default function Admin() {
           href="/"
           style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}
         >
-          <span
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 9,
-              background: C.indigo,
-              color: C.cream,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: display,
-              fontWeight: 800,
-            }}
-          >
-            m
-          </span>
+          <img
+            src="/mana-emblem.svg"
+            alt="Mana"
+            width={34}
+            height={34}
+            style={{ display: 'block' }}
+          />
           <span style={{ fontFamily: display, fontWeight: 800, fontSize: 18, color: C.indigo }}>
             mana
           </span>

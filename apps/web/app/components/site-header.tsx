@@ -23,23 +23,13 @@ export default function SiteHeader() {
           href="/"
           style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}
         >
-          <span
-            style={{
-              width: 33,
-              height: 33,
-              borderRadius: 10,
-              background: C.indigo,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: C.cream,
-              fontFamily: display,
-              fontWeight: 800,
-              fontSize: 19,
-            }}
-          >
-            m
-          </span>
+          <img
+            src="/mana-emblem.svg"
+            alt="Mana"
+            width={38}
+            height={38}
+            style={{ display: 'block' }}
+          />
           <span
             style={{
               fontFamily: display,

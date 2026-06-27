@@ -82,23 +82,13 @@ export default function DealerShell({ children }: { children: ReactNode }) {
             href="/dealer"
             style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}
           >
-            <span
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 9,
-                background: C.indigo,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: C.cream,
-                fontFamily: display,
-                fontWeight: 800,
-                fontSize: 18,
-              }}
-            >
-              m
-            </span>
+            <img
+              src="/mana-emblem.svg"
+              alt="Mana"
+              width={36}
+              height={36}
+              style={{ display: 'block' }}
+            />
             <span style={{ lineHeight: 1 }}>
               <span
                 style={{

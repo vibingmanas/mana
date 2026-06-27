@@ -80,23 +80,13 @@ export default function InspectorApp() {
           href="/"
           style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}
         >
-          <span
-            style={{
-              width: 33,
-              height: 33,
-              borderRadius: 10,
-              background: C.indigo,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: C.cream,
-              fontFamily: display,
-              fontWeight: 800,
-              fontSize: 19,
-            }}
-          >
-            m
-          </span>
+          <img
+            src="/mana-emblem.svg"
+            alt="Mana"
+            width={36}
+            height={36}
+            style={{ display: 'block' }}
+          />
           <span style={{ fontFamily: display, fontWeight: 800, fontSize: 18, color: C.indigo }}>
             Inspector
           </span>
