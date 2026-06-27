@@ -181,7 +181,7 @@ export default async function Home() {
                 marginBottom: 18,
               }}
             >
-              India's most trusted used cars
+              India's used-car transparency platform
             </div>
             <h1
               style={{
@@ -194,20 +194,21 @@ export default async function Home() {
                 color: C.indigo,
               }}
             >
-              Every car inspected.
+              Every car compared.
               <br />
-              Every price <span style={{ color: C.coral }}>honest.</span>
+              Every price <span style={{ color: C.coral }}>fair.</span>
             </h1>
             <p
               style={{
                 margin: '20px 0 0',
                 color: C.grey,
                 fontSize: 'clamp(16px,1.8vw,19px)',
-                maxWidth: 480,
+                maxWidth: 500,
               }}
             >
-              Buy a used car the calm way — verified condition, one transparent on-road price, and a
-              7-day return window. No haggling, no surprises.
+              Discover cars from dealers, owners and bank auctions in one place — each with a
+              fair-price label, a 1–10 risk score and full history. Compare, decide, and let us
+              handle inspection, finance and paperwork.
             </p>
             <form
               action="/listings"
@@ -381,6 +382,50 @@ export default async function Home() {
               </div>
               <div style={{ fontSize: 13.5, color: C.grey, marginTop: 5 }}>{l}</div>
             </div>
+          ))}
+        </div>
+      </section>
+
+      {/* What we aggregate + intelligence */}
+      <section
+        style={{
+          maxWidth: 1240,
+          margin: '0 auto',
+          padding: 'clamp(20px,3vw,36px) clamp(16px,4vw,40px) 0',
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))',
+            gap: 12,
+          }}
+        >
+          {[
+            ['Dealer stock', 'Verified local dealers', '/listings?source=DEALER'],
+            ['Owner cars', 'Direct from owners', '/listings?source=INDIVIDUAL'],
+            ['Bank auctions', 'Seized & repossessed', '/auctions'],
+            ['Fair Price + Risk', 'On every single car', '/methodology/fair-price'],
+          ].map(([t, d, href]) => (
+            <Link
+              key={t}
+              href={href}
+              style={{
+                background: '#fff',
+                border: `1px solid ${C.border}`,
+                borderRadius: 18,
+                padding: '18px 18px',
+                textDecoration: 'none',
+              }}
+            >
+              <div style={{ fontFamily: display, fontWeight: 800, fontSize: 16, color: C.indigo }}>
+                {t}
+              </div>
+              <div style={{ fontSize: 13, color: C.grey, marginTop: 4 }}>{d}</div>
+              <div style={{ fontSize: 12.5, color: C.coral, fontWeight: 700, marginTop: 8 }}>
+                Explore →
+              </div>
+            </Link>
           ))}
         </div>
       </section>
@@ -1232,7 +1277,15 @@ export default async function Home() {
           fontSize: 13,
         }}
       >
-        Mana — organizing India&apos;s used-car dealers.{' '}
+        Mana — India&apos;s used-car transparency & aggregation platform.{' '}
+        <Link href="/auctions" style={{ color: C.coral }}>
+          Auctions
+        </Link>{' '}
+        ·{' '}
+        <Link href="/guides" style={{ color: C.coral }}>
+          Guides
+        </Link>{' '}
+        ·{' '}
         <Link href="/dealer" style={{ color: C.coral }}>
           For dealers
         </Link>{' '}
