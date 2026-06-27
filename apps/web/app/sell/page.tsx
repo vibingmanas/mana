@@ -1,5 +1,5 @@
 'use client';
-
+import Link from 'next/link';
 import { useState } from 'react';
 import SiteHeader from '../components/site-header';
 import { api, getToken, setTokens, type ApiError } from '../../lib/api';
@@ -167,7 +167,10 @@ export default function SellPage() {
         </div>
         <h1 style={h1}>Get your car&apos;s price in 2 minutes</h1>
         <p style={{ color: C.grey, margin: '6px 0 18px', fontSize: 15 }}>
-          Free, no obligation. Sign in to start.
+          Free, no obligation. Sign in to start.{' '}
+          <Link href="/sell/offers" style={{ color: C.coral, fontWeight: 600 }}>
+            View your offers →
+          </Link>
         </p>
         <div style={card}>
           {!otpSent ? (

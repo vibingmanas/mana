@@ -20,6 +20,13 @@ class EstimateDto {
 class BookDto {
   @IsOptional() @IsString() when?: string;
 }
+class RenegotiateDto {
+  @IsInt() @Min(1000) @Max(100_000_000) counterAmount!: number;
+  @IsOptional() @IsString() @Length(0, 500) comment?: string;
+}
+class RejectDto {
+  @IsOptional() @IsString() @Length(0, 500) comment?: string;
+}
 
 @Controller('sell')
 @UseGuards(JwtAuthGuard)
@@ -56,5 +63,27 @@ export class SellController {
     @Param('offerId') offerId: string,
   ) {
     return this.sell.acceptOffer(user.userId, id, offerId);
+  }
+
+  @Post(':id/offers/:offerId/renegotiate')
+  @HttpCode(200)
+  renegotiate(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('offerId') offerId: string,
+    @Body() dto: RenegotiateDto,
+  ) {
+    return this.sell.renegotiateOffer(user.userId, id, offerId, dto.counterAmount, dto.comment);
+  }
+
+  @Post(':id/offers/:offerId/reject')
+  @HttpCode(200)
+  reject(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('offerId') offerId: string,
+    @Body() dto: RejectDto,
+  ) {
+    return this.sell.rejectOffer(user.userId, id, offerId, dto.comment);
   }
 }
