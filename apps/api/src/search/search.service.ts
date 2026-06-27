@@ -8,13 +8,29 @@ export interface ListingSearch {
   make?: string;
   model?: string;
   city?: string;
+  state?: string;
   fuelType?: string;
+  transmission?: string;
+  bodyType?: string;
+  source?: string;
   minPrice?: number;
   maxPrice?: number;
+  maxOwners?: number;
+  minYear?: number;
+  maxKm?: number;
+  luxury?: string;
+  verifiedOnly?: string;
+  accidentFree?: string;
+  riskBand?: string;
+  lat?: number;
+  lng?: number;
+  radiusKm?: number;
   page?: number;
   limit?: number;
   sort?: string;
 }
+
+const isTrue = (v?: string) => v === 'true' || v === '1';
 
 // Shared hydration shape so OpenSearch and Postgres paths return identical items.
 const LISTING_INCLUDE = {
@@ -42,11 +58,29 @@ export class SearchService {
     private readonly os: OpenSearchClient,
   ) {}
 
+  private hasAdvancedFilters(q: ListingSearch): boolean {
+    return !!(
+      q.state ||
+      q.transmission ||
+      q.bodyType ||
+      q.source ||
+      q.maxOwners != null ||
+      q.minYear != null ||
+      q.maxKm != null ||
+      isTrue(q.luxury) ||
+      isTrue(q.verifiedOnly) ||
+      isTrue(q.accidentFree) ||
+      q.riskBand ||
+      q.radiusKm != null
+    );
+  }
+
   async searchListings(q: ListingSearch) {
     const page = q.page ?? 1;
     const limit = q.limit ?? 20;
 
-    if (this.os.isEnabled()) {
+    // Advanced filters live in Postgres only; skip OpenSearch when present.
+    if (this.os.isEnabled() && !this.hasAdvancedFilters(q)) {
       try {
         const { total, ids } = await this.os.search({
           q: q.q,
@@ -77,17 +111,39 @@ export class SearchService {
     return this.postgresSearch(q, page, limit);
   }
 
-  private async postgresSearch(q: ListingSearch, page: number, limit: number) {
+  private buildWhere(q: ListingSearch): Prisma.VehicleWhereInput {
     const text = q.q?.trim();
-    const where: Prisma.VehicleWhereInput = {
+    // Approximate radius via a bounding box (no PostGIS needed): 1° lat ≈ 111 km.
+    let geo: Prisma.VehicleWhereInput = {};
+    if (q.lat != null && q.lng != null && q.radiusKm) {
+      const dLat = q.radiusKm / 111;
+      const dLng = q.radiusKm / (111 * Math.max(0.1, Math.cos((q.lat * Math.PI) / 180)));
+      geo = {
+        latitude: { gte: q.lat - dLat, lte: q.lat + dLat },
+        longitude: { gte: q.lng - dLng, lte: q.lng + dLng },
+      };
+    }
+    return {
       status: VehicleStatus.LIVE,
       ...(q.make ? { make: { contains: q.make, mode: 'insensitive' } } : {}),
       ...(q.model ? { model: { contains: q.model, mode: 'insensitive' } } : {}),
       ...(q.city ? { city: { contains: q.city, mode: 'insensitive' } } : {}),
+      ...(q.state ? { state: { equals: q.state, mode: 'insensitive' } } : {}),
       ...(q.fuelType ? { fuelType: q.fuelType } : {}),
+      ...(q.transmission ? { transmission: q.transmission } : {}),
+      ...(q.bodyType ? { bodyType: q.bodyType } : {}),
+      ...(q.source ? { source: q.source as Prisma.EnumListingSourceFilter['equals'] } : {}),
+      ...(q.riskBand ? { riskBand: q.riskBand } : {}),
+      ...(isTrue(q.luxury) ? { isLuxury: true } : {}),
+      ...(isTrue(q.accidentFree) ? { accidentFree: true } : {}),
+      ...(isTrue(q.verifiedOnly) ? { verification: { is: { verifiedAt: { not: null } } } } : {}),
+      ...(q.maxOwners != null ? { ownersCount: { lte: q.maxOwners } } : {}),
+      ...(q.minYear != null ? { manufactureYear: { gte: q.minYear } } : {}),
+      ...(q.maxKm != null ? { odometerKm: { lte: q.maxKm } } : {}),
       ...(q.minPrice || q.maxPrice
         ? { price: { gte: q.minPrice ?? 0, lte: q.maxPrice ?? 100_000_000 } }
         : {}),
+      ...geo,
       ...(text
         ? {
             OR: [
@@ -99,24 +155,68 @@ export class SearchService {
           }
         : {}),
     };
-    const orderBy = {
-      price_asc: { price: 'asc' as const },
-      price_desc: { price: 'desc' as const },
-      deal: { dealScore: 'desc' as const },
-      recent: { listedAt: 'desc' as const },
-    }[q.sort ?? 'recent'];
+  }
+
+  private async postgresSearch(q: ListingSearch, page: number, limit: number) {
+    const where = this.buildWhere(q);
+    const sortMap: Record<string, Prisma.VehicleOrderByWithRelationInput> = {
+      price_asc: { price: 'asc' },
+      price_desc: { price: 'desc' },
+      deal: { dealScore: 'desc' },
+      risk: { riskScore: 'asc' },
+      recent: { listedAt: 'desc' },
+    };
+    const orderBy = sortMap[q.sort ?? 'recent'] ?? sortMap.recent;
 
     const [total, items] = await Promise.all([
       this.prisma.vehicle.count({ where }),
       this.prisma.vehicle.findMany({
         where,
-        orderBy,
+        orderBy: [{ boostedUntil: { sort: 'desc', nulls: 'last' } }, orderBy],
         skip: (page - 1) * limit,
         take: limit,
         include: LISTING_INCLUDE,
       }),
     ]);
     return { total, page, limit, backend: 'postgres', items: items.map(stripAdminFields) };
+  }
+
+  /** Drill-down facets for the search UI: states (with counts), makes, body types, sources. */
+  async facets() {
+    const where = { status: VehicleStatus.LIVE };
+    const [states, makes, bodies, sources] = await Promise.all([
+      this.prisma.vehicle.groupBy({ by: ['state'], where, _count: { _all: true } }),
+      this.prisma.vehicle.groupBy({ by: ['make'], where, _count: { _all: true } }),
+      this.prisma.vehicle.groupBy({ by: ['bodyType'], where, _count: { _all: true } }),
+      this.prisma.vehicle.groupBy({ by: ['source'], where, _count: { _all: true } }),
+    ]);
+    const clean = (rows: { _count: { _all: number } }[], key: string) =>
+      rows
+        .map((r) => ({
+          value: (r as Record<string, unknown>)[key] as string | null,
+          count: r._count._all,
+        }))
+        .filter((r) => !!r.value)
+        .sort((a, b) => b.count - a.count);
+    return {
+      states: clean(states, 'state'),
+      makes: clean(makes, 'make'),
+      bodyTypes: clean(bodies, 'bodyType'),
+      sources: clean(sources, 'source'),
+    };
+  }
+
+  /** Cities (with counts) within a state — second level of the location drill-down. */
+  async cities(state: string) {
+    const rows = await this.prisma.vehicle.groupBy({
+      by: ['city'],
+      where: { status: VehicleStatus.LIVE, state: { equals: state, mode: 'insensitive' } },
+      _count: { _all: true },
+    });
+    return rows
+      .map((r) => ({ value: r.city, count: r._count._all }))
+      .filter((r) => !!r.value)
+      .sort((a, b) => b.count - a.count);
   }
 
   // ─── Index maintenance (best-effort; never blocks the write path) ───────

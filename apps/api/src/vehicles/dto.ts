@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  IsBooleanString,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
@@ -61,10 +63,25 @@ export class SearchListingsDto {
   @IsOptional() @IsString() make?: string;
   @IsOptional() @IsString() model?: string;
   @IsOptional() @IsString() city?: string;
+  @IsOptional() @IsString() state?: string;
   @IsOptional() @IsString() fuelType?: string;
+  @IsOptional() @IsString() transmission?: string;
+  @IsOptional() @IsString() bodyType?: string;
+  @IsOptional() @IsIn(['DEALER', 'INDIVIDUAL', 'AUCTION', 'PLATFORM']) source?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) minPrice?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) maxPrice?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) maxOwners?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1900) minYear?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) maxKm?: number;
+  @IsOptional() @IsBooleanString() luxury?: string;
+  @IsOptional() @IsBooleanString() verifiedOnly?: string;
+  @IsOptional() @IsBooleanString() accidentFree?: string;
+  @IsOptional() @IsIn(['LOW', 'MODERATE', 'HIGH']) riskBand?: string;
+  // Radius search around a point.
+  @IsOptional() @Type(() => Number) @IsNumber() lat?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() lng?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(2000) radiusKm?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(50) limit?: number;
-  @IsOptional() @IsIn(['recent', 'price_asc', 'price_desc', 'deal']) sort?: string;
+  @IsOptional() @IsIn(['recent', 'price_asc', 'price_desc', 'deal', 'risk']) sort?: string;
 }

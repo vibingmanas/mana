@@ -16,6 +16,16 @@ export class ListingsController {
     return this.search.searchListings(query);
   }
 
+  @Get('facets')
+  facets() {
+    return this.search.facets();
+  }
+
+  @Get('cities')
+  cities(@Query('state') state: string) {
+    return this.search.cities(state ?? '');
+  }
+
   @Get(':id')
   getOne(@Param('id') id: string) {
     return this.vehicles.getListing(id);
