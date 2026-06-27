@@ -23,6 +23,43 @@ interface SellReq {
   offers: Offer[];
 }
 
+// Defined at module scope (not inside the component) so they keep a stable
+// identity across renders — otherwise every keystroke remounts the inputs.
+function Progress({ step }: { step: number }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, marginBottom: 22 }}>
+      {[1, 2, 3].map((n) => (
+        <div
+          key={n}
+          style={{
+            flex: 1,
+            height: 5,
+            borderRadius: 999,
+            background: n <= step ? C.indigo : C.border,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ overflowX: 'hidden' }}>
+      <SiteHeader />
+      <main
+        style={{
+          maxWidth: 600,
+          margin: '0 auto',
+          padding: 'clamp(24px,4vw,48px) clamp(16px,4vw,40px) 80px',
+        }}
+      >
+        {children}
+      </main>
+    </div>
+  );
+}
+
 export default function SellPage() {
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -120,36 +157,6 @@ export default function SellPage() {
       setReq(r);
     });
 
-  const Progress = () => (
-    <div style={{ display: 'flex', gap: 6, marginBottom: 22 }}>
-      {[1, 2, 3].map((n) => (
-        <div
-          key={n}
-          style={{
-            flex: 1,
-            height: 5,
-            borderRadius: 999,
-            background: n <= step ? C.indigo : C.border,
-          }}
-        />
-      ))}
-    </div>
-  );
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div style={{ overflowX: 'hidden' }}>
-      <SiteHeader />
-      <main
-        style={{
-          maxWidth: 600,
-          margin: '0 auto',
-          padding: 'clamp(24px,4vw,48px) clamp(16px,4vw,40px) 80px',
-        }}
-      >
-        {children}
-      </main>
-    </div>
-  );
-
   if (!authed) {
     return (
       <Shell>
@@ -216,7 +223,7 @@ export default function SellPage() {
       >
         Sell your car · Step {Math.min(step, 3)} of 3
       </div>
-      <Progress />
+      <Progress step={step} />
 
       {step === 1 && (
         <div>
