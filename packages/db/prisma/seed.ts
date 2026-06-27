@@ -5,6 +5,9 @@ import {
   DealerStatus,
   VerificationTier,
   VehicleStatus,
+  ListingSource,
+  AuctionSource,
+  AuctionStatus,
 } from '../generated/client';
 
 const prisma = new PrismaClient();
@@ -103,6 +106,126 @@ async function main() {
       listedAt: new Date(),
     },
   });
+
+  // ─── Multi-source demo inventory (individual sellers + auctions) ──────
+  const demo = [
+    {
+      regNumber: 'KA01IND2201',
+      source: ListingSource.INDIVIDUAL,
+      sellerName: 'Ravi Kumar',
+      make: 'Hyundai',
+      model: 'i20',
+      variant: 'Asta',
+      fuelType: 'Petrol',
+      transmission: 'Manual',
+      bodyType: 'Hatchback',
+      manufactureYear: 2020,
+      odometerKm: 38000,
+      ownersCount: 1,
+      accidentFree: true,
+      price: 720000,
+      valuationFair: 700000,
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      pincode: '560001',
+      latitude: 12.9716,
+      longitude: 77.5946,
+      fairPriceLabel: 'FAIR',
+      fairDeviationPct: 2.9,
+      riskScore: 2,
+      riskBand: 'LOW',
+    },
+    {
+      regNumber: 'MH02IND7788',
+      source: ListingSource.INDIVIDUAL,
+      sellerName: 'Sneha Patil',
+      make: 'Maruti Suzuki',
+      model: 'Baleno',
+      variant: 'Zeta',
+      fuelType: 'Petrol',
+      transmission: 'Manual',
+      bodyType: 'Hatchback',
+      manufactureYear: 2018,
+      odometerKm: 61000,
+      ownersCount: 2,
+      accidentFree: null,
+      price: 560000,
+      valuationFair: 620000,
+      city: 'Mumbai',
+      state: 'Maharashtra',
+      pincode: '400001',
+      latitude: 19.076,
+      longitude: 72.8777,
+      fairPriceLabel: 'UNDERPRICED',
+      fairDeviationPct: -9.7,
+      riskScore: 4,
+      riskBand: 'MODERATE',
+    },
+    {
+      regNumber: 'DL03AUC9001',
+      source: ListingSource.AUCTION,
+      sellerName: 'HDFC Bank',
+      make: 'Toyota',
+      model: 'Innova Crysta',
+      variant: 'GX',
+      fuelType: 'Diesel',
+      transmission: 'Manual',
+      bodyType: 'MUV',
+      manufactureYear: 2017,
+      odometerKm: 120000,
+      ownersCount: 2,
+      accidentFree: false,
+      price: 980000,
+      valuationFair: 1150000,
+      city: 'Delhi',
+      state: 'Delhi',
+      pincode: '110001',
+      latitude: 28.6139,
+      longitude: 77.209,
+      fairPriceLabel: 'UNDERPRICED',
+      fairDeviationPct: -14.8,
+      riskScore: 7,
+      riskBand: 'HIGH',
+    },
+  ];
+
+  for (const d of demo) {
+    const { fairDeviationPct, riskScore, riskBand, ...rest } = d;
+    const existing = await prisma.vehicle.findFirst({ where: { regNumber: d.regNumber } });
+    const v =
+      existing ??
+      (await prisma.vehicle.create({
+        data: {
+          ...rest,
+          valuationLow: Math.round(d.valuationFair * 0.92),
+          valuationHigh: Math.round(d.valuationFair * 1.08),
+          fairDeviationPct,
+          riskScore,
+          riskBand,
+          status: VehicleStatus.LIVE,
+          listedAt: new Date(),
+        },
+      }));
+    if (d.source === ListingSource.AUCTION) {
+      await prisma.auction.upsert({
+        where: { vehicleId: v.id },
+        update: {},
+        create: {
+          vehicleId: v.id,
+          source: AuctionSource.BANK,
+          sourceName: 'HDFC Bank',
+          lotNumber: 'LOT-9001',
+          venue: 'Online · Delhi NCR',
+          startsAt: new Date(Date.now() + 5 * 86400000),
+          endsAt: new Date(Date.now() + 6 * 86400000),
+          guidePrice: 950000,
+          reservePrice: 900000,
+          status: AuctionStatus.UPCOMING,
+          docsChecklist: ['PAN', 'Aadhaar', 'EMD demand draft', 'Bid form'],
+        },
+      });
+    }
+  }
 
   console.log('Seed complete:', { adminUser: adminUser.email, dealer: dealer.displayName });
 }

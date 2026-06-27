@@ -132,6 +132,9 @@ export class AppointmentsService {
     const vehicle = await this.prisma.vehicle.findUnique({ where: { id: vehicleId } });
     if (!vehicle || vehicle.status !== VehicleStatus.LIVE)
       throw new NotFoundException('Listing not available');
+    if (!vehicle.dealerId)
+      throw new BadRequestException('Test drives are available only on dealer-listed cars');
+    const dealerId: string = vehicle.dealerId;
 
     const start = new Date(scheduledStart);
     if (Number.isNaN(start.getTime())) throw new BadRequestException('invalid scheduledStart');
@@ -139,7 +142,7 @@ export class AppointmentsService {
       throw new BadRequestException('cannot book a slot in the past');
 
     const rows = await this.prisma.dealerAvailability.findMany({
-      where: { dealerId: vehicle.dealerId },
+      where: { dealerId: dealerId },
     });
     const windows = this.toWindows(rows);
     if (!isValidSlotStart(start, windows)) {
@@ -157,18 +160,18 @@ export class AppointmentsService {
 
     // Conflict check (best-effort; a DB unique index could harden this later).
     const clash = await this.prisma.appointment.findFirst({
-      where: { dealerId: vehicle.dealerId, status: { in: ACTIVE }, scheduledStart: start },
+      where: { dealerId: dealerId, status: { in: ACTIVE }, scheduledStart: start },
     });
     if (clash) throw new BadRequestException('That slot was just taken; pick another');
 
     const lead = await this.prisma.lead.create({
-      data: { buyerId, vehicleId, dealerId: vehicle.dealerId, intent: LeadIntent.TEST_DRIVE },
+      data: { buyerId, vehicleId, dealerId: dealerId, intent: LeadIntent.TEST_DRIVE },
     });
 
     return this.prisma.appointment.create({
       data: {
         vehicleId,
-        dealerId: vehicle.dealerId,
+        dealerId: dealerId,
         buyerId,
         leadId: lead.id,
         type,

@@ -25,6 +25,14 @@ const LISTING_INCLUDE = {
   dealer: { select: { displayName: true, city: true, verificationTier: true } },
 } satisfies Prisma.VehicleInclude;
 
+// Fair-price deviation % is admin-only — never expose it on public listing reads.
+function stripAdminFields<T extends { fairDeviationPct?: unknown }>(
+  row: T,
+): Omit<T, 'fairDeviationPct'> {
+  const { fairDeviationPct: _omit, ...rest } = row;
+  return rest;
+}
+
 @Injectable()
 export class SearchService {
   private readonly logger = new Logger(SearchService.name);
@@ -57,7 +65,10 @@ export class SearchService {
           include: LISTING_INCLUDE,
         });
         const byId = new Map(rows.map((r) => [r.id, r]));
-        const items = ids.map((id) => byId.get(id)).filter(Boolean);
+        const items = ids
+          .map((id) => byId.get(id))
+          .filter((r): r is (typeof rows)[number] => !!r)
+          .map(stripAdminFields);
         return { total, page, limit, backend: 'opensearch', items };
       } catch (err) {
         this.logger.warn(`OpenSearch query failed, falling back to Postgres: ${String(err)}`);
@@ -105,7 +116,7 @@ export class SearchService {
         include: LISTING_INCLUDE,
       }),
     ]);
-    return { total, page, limit, backend: 'postgres', items };
+    return { total, page, limit, backend: 'postgres', items: items.map(stripAdminFields) };
   }
 
   // ─── Index maintenance (best-effort; never blocks the write path) ───────
