@@ -2,6 +2,7 @@ import Link from 'next/link';
 import SiteHeader from '../components/site-header';
 import CompareButton from '../components/compare-button';
 import CompareTray from '../components/compare-tray';
+import SaveSearchButton from '../components/save-search-button';
 import { C, display, inr } from '../../lib/ds';
 
 export const dynamic = 'force-dynamic';
@@ -456,8 +457,20 @@ export default async function Listings({
                 marginBottom: 18,
               }}
             >
-              <span style={{ fontSize: 14, color: C.grey, fontWeight: 600 }}>
-                <b style={{ color: C.text, fontWeight: 800 }}>{total}</b> results
+              <span
+                style={{
+                  fontSize: 14,
+                  color: C.grey,
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <span>
+                  <b style={{ color: C.text, fontWeight: 800 }}>{total}</b> results
+                </span>
+                <SaveSearchButton query={params} />
               </span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {[

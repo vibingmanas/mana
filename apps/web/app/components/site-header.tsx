@@ -112,6 +112,20 @@ export default function SiteHeader() {
         </nav>
         <div style={{ flex: 1 }} />
         <Link
+          href="/account"
+          style={{
+            fontSize: 14.5,
+            fontWeight: 600,
+            color: C.grey,
+            padding: '9px 13px',
+            borderRadius: 11,
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Account
+        </Link>
+        <Link
           href="/listings"
           style={{
             display: 'inline-flex',
