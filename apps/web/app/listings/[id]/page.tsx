@@ -20,6 +20,12 @@ interface Listing {
   price: number | null;
   valuationFair: number | null;
   dealScore: number | null;
+  fairPriceLabel: string | null;
+  riskScore: number | null;
+  riskBand: string | null;
+  riskFactors: { key: string; label: string; points: number }[] | null;
+  source: string | null;
+  sellerName: string | null;
   city: string | null;
   media: { url: string; type: string }[];
   certification: { tier: string } | null;
@@ -61,6 +67,26 @@ const CERT: Record<string, string> = {
   AI_CHECKED: 'AI-checked',
   MANA_INSPECTED: 'Mana Inspected',
   MANA_CERTIFIED: 'Mana Certified',
+};
+const FPI_LABEL: Record<string, string> = {
+  UNDERPRICED: 'Underpriced',
+  FAIR: 'Fair price',
+  OVERPRICED: 'Above market',
+};
+const FPI_COLOR: Record<string, string> = {
+  UNDERPRICED: '#3B6B45',
+  FAIR: C.indigo,
+  OVERPRICED: C.coralDark,
+};
+const RISK_LABEL: Record<string, string> = {
+  LOW: 'Low risk',
+  MODERATE: 'Moderate risk',
+  HIGH: 'High risk',
+};
+const RISK_COLOR: Record<string, string> = {
+  LOW: '#3B6B45',
+  MODERATE: '#9A6B00',
+  HIGH: C.coralDark,
 };
 const SECTION_LABEL: Record<string, string> = {
   engine: 'Engine',
@@ -327,6 +353,156 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
                 </div>
               ))}
             </div>
+
+            {/* Fair Price Index + Risk Score */}
+            <section style={{ marginTop: 34, display: 'grid', gap: 14 }}>
+              {car.fairPriceLabel && (
+                <div
+                  style={{
+                    background: '#fff',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 22,
+                    padding: 'clamp(18px,3vw,24px)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: '.14em',
+                      textTransform: 'uppercase',
+                      color: C.grey,
+                      marginBottom: 8,
+                    }}
+                  >
+                    Fair Price Index
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontFamily: display,
+                        fontWeight: 800,
+                        fontSize: 20,
+                        color: FPI_COLOR[car.fairPriceLabel] ?? C.indigo,
+                      }}
+                    >
+                      {FPI_LABEL[car.fairPriceLabel] ?? 'Fair price'}
+                    </span>
+                    {car.valuationFair ? (
+                      <span style={{ color: C.grey, fontSize: 14 }}>
+                        Fair market value ~{inr(car.valuationFair)}
+                      </span>
+                    ) : null}
+                  </div>
+                  {car.valuationFair && car.price ? (
+                    <p
+                      style={{
+                        margin: '12px 0 0',
+                        color: C.text,
+                        fontSize: 14.5,
+                        lineHeight: 1.55,
+                      }}
+                    >
+                      Negotiation target:{' '}
+                      <strong>
+                        {inr(Math.round(car.valuationFair * 0.95))}–{inr(car.valuationFair)}
+                      </strong>{' '}
+                      based on fair value.{' '}
+                      <Link
+                        href="/methodology/fair-price"
+                        style={{ color: C.coral, fontWeight: 600 }}
+                      >
+                        How we calculate this →
+                      </Link>
+                    </p>
+                  ) : null}
+                </div>
+              )}
+
+              {car.riskScore != null && (
+                <div
+                  style={{
+                    background: '#fff',
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 22,
+                    padding: 'clamp(18px,3vw,24px)',
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 700,
+                      letterSpacing: '.14em',
+                      textTransform: 'uppercase',
+                      color: C.grey,
+                      marginBottom: 10,
+                    }}
+                  >
+                    Risk score
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        fontFamily: display,
+                        fontWeight: 800,
+                        fontSize: 30,
+                        color: RISK_COLOR[car.riskBand ?? 'MODERATE'],
+                      }}
+                    >
+                      {car.riskScore}
+                      <span style={{ fontSize: 16, color: C.grey }}>/10</span>
+                    </div>
+                    <span
+                      style={{
+                        background: C.tint,
+                        color: RISK_COLOR[car.riskBand ?? 'MODERATE'],
+                        fontWeight: 800,
+                        fontSize: 13,
+                        padding: '6px 13px',
+                        borderRadius: 999,
+                      }}
+                    >
+                      {RISK_LABEL[car.riskBand ?? 'MODERATE']}
+                    </span>
+                  </div>
+                  {car.riskFactors && car.riskFactors.length > 0 ? (
+                    <ul
+                      style={{
+                        margin: '14px 0 0',
+                        paddingLeft: 18,
+                        color: C.text,
+                        fontSize: 14,
+                        lineHeight: 1.7,
+                      }}
+                    >
+                      {car.riskFactors.map((f) => (
+                        <li key={f.key}>{f.label}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p
+                      style={{
+                        margin: '12px 0 0',
+                        color: '#3B6B45',
+                        fontWeight: 600,
+                        fontSize: 14,
+                      }}
+                    >
+                      No notable risk signals found.
+                    </p>
+                  )}
+                  <p style={{ margin: '12px 0 0', fontSize: 12.5, color: C.grey }}>
+                    Indicative only — always inspect before you buy.{' '}
+                    <Link
+                      href="/methodology/risk-score"
+                      style={{ color: C.coral, fontWeight: 600 }}
+                    >
+                      Methodology →
+                    </Link>
+                  </p>
+                </div>
+              )}
+            </section>
 
             {/* Inspection */}
             {insp && (
