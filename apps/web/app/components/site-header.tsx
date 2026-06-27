@@ -82,6 +82,20 @@ export default function SiteHeader() {
             Sell your car
           </Link>
           <Link
+            href="/auctions"
+            style={{
+              fontSize: 14.5,
+              fontWeight: 600,
+              color: C.text,
+              padding: '9px 13px',
+              borderRadius: 11,
+              textDecoration: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Auctions
+          </Link>
+          <Link
             href="/dealer"
             style={{
               fontSize: 14.5,

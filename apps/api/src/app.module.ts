@@ -20,6 +20,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { BillingModule } from './billing/billing.module';
 import { SellModule } from './sell/sell.module';
 import { SearchModule } from './search/search.module';
+import { AuctionsModule } from './auctions/auctions.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { SearchModule } from './search/search.module';
     FinanceModule,
     BillingModule,
     SellModule,
+    AuctionsModule,
     HealthModule,
   ],
 })
