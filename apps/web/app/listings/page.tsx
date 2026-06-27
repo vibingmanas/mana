@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import SiteHeader from '../components/site-header';
+import CompareButton from '../components/compare-button';
+import CompareTray from '../components/compare-tray';
 import { C, display, inr } from '../../lib/ds';
 
 export const dynamic = 'force-dynamic';
@@ -528,19 +530,24 @@ export default async function Listings({
                 }}
               >
                 {items.map((c) => (
-                  <Link
+                  <div
                     key={c.id}
-                    href={`/listings/${c.id}`}
                     style={{
+                      position: 'relative',
                       background: '#fff',
                       border: `1px solid ${C.border}`,
                       borderRadius: 22,
                       overflow: 'hidden',
-                      textDecoration: 'none',
                       display: 'flex',
                       flexDirection: 'column',
                     }}
                   >
+                    <Link
+                      href={`/listings/${c.id}`}
+                      aria-label={`${c.make ?? ''} ${c.model ?? ''}`}
+                      style={{ position: 'absolute', inset: 0, zIndex: 1 }}
+                    />
+                    <CompareButton id={c.id} />
                     <div
                       style={{ position: 'relative', aspectRatio: '16 / 11', background: C.tint }}
                     >
@@ -683,13 +690,14 @@ export default async function Listings({
                         </div>
                       </div>
                     </div>
-                  </Link>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </div>
       </main>
+      <CompareTray />
     </div>
   );
 }

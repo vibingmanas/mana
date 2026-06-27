@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import SiteHeader from '../../components/site-header';
 import BuyerActions from './buyer-actions';
+import CompareButton from '../../components/compare-button';
+import CompareTray from '../../components/compare-tray';
 import { C, display, inr } from '../../../lib/ds';
 
 export const dynamic = 'force-dynamic';
@@ -949,10 +951,14 @@ export default async function ListingDetail({ params }: { params: Promise<{ id: 
               <div style={{ marginTop: 18 }}>
                 <BuyerActions vehicleId={car.id} />
               </div>
+              <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center' }}>
+                <CompareButton id={car.id} variant="inline" />
+              </div>
             </div>
           </aside>
         </div>
       </main>
+      <CompareTray />
     </div>
   );
 }
