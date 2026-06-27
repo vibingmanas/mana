@@ -27,9 +27,11 @@ export class BootstrapService implements OnApplicationBootstrap {
 
   async onApplicationBootstrap() {
     if (process.env.BOOTSTRAP_SEED === 'off') return;
-    const admin = await this.prisma.user.findFirst({ where: { role: UserRole.ADMIN } });
-    if (admin) return;
-    this.logger.log('No admin found — seeding demo dataset…');
+    // Seed when the demo dataset is absent (no auction listings yet). Covers both
+    // a fresh DB and a partially-seeded one. A real env with live auctions won't reseed.
+    const auctions = await this.prisma.auction.count();
+    if (auctions > 0) return;
+    this.logger.log('No auctions found — seeding demo dataset…');
     try {
       await this.seed();
       this.logger.log('Demo seed complete.');
