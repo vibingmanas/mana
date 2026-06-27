@@ -387,7 +387,7 @@ export default function SellPage() {
             </div>
           )}
 
-          {req.offers.length > 0 && (
+          {(req.offers?.length ?? 0) > 0 && (
             <div style={{ marginTop: 20 }}>
               <strong style={{ fontFamily: display, color: C.indigo, fontSize: 18 }}>
                 {req.status === 'ACCEPTED'
@@ -395,7 +395,7 @@ export default function SellPage() {
                   : `${req.offers.length} competitive offers`}
               </strong>
               <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-                {req.offers.map((o) => (
+                {(req.offers ?? []).map((o) => (
                   <div
                     key={o.id}
                     style={{
