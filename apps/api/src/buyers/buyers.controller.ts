@@ -65,4 +65,43 @@ export class BuyersController {
   deleteSavedSearch(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.buyers.deleteSavedSearch(user.userId, id);
   }
+
+  // ── Account, Pro, reports ──
+  @Get('account')
+  account(@CurrentUser() user: AuthUser) {
+    return this.buyers.account(user.userId);
+  }
+
+  @Get('pro')
+  pro(@CurrentUser() user: AuthUser) {
+    return this.buyers.getSubscription(user.userId);
+  }
+
+  @Post('pro/subscribe')
+  @HttpCode(200)
+  subscribePro(@CurrentUser() user: AuthUser) {
+    return this.buyers.subscribePro(user.userId);
+  }
+
+  @Post('pro/cancel')
+  @HttpCode(200)
+  cancelPro(@CurrentUser() user: AuthUser) {
+    return this.buyers.cancelPro(user.userId);
+  }
+
+  @Get('reports')
+  reports(@CurrentUser() user: AuthUser) {
+    return this.buyers.listReports(user.userId);
+  }
+
+  @Get('reports/:vehicleId/access')
+  reportAccess(@CurrentUser() user: AuthUser, @Param('vehicleId') vehicleId: string) {
+    return this.buyers.reportAccess(user.userId, vehicleId);
+  }
+
+  @Post('reports/:vehicleId')
+  @HttpCode(201)
+  purchaseReport(@CurrentUser() user: AuthUser, @Param('vehicleId') vehicleId: string) {
+    return this.buyers.purchaseReport(user.userId, vehicleId);
+  }
 }
