@@ -94,7 +94,14 @@ ok(
 );
 
 // public listing visible
-ok((await call(`/listings/${vid}`)).status === 200, 'public listing visible');
+const detail = await call(`/listings/${vid}`);
+ok(detail.status === 200, 'public listing visible');
+ok(
+  !!detail.json.riskBand &&
+    !!detail.json.fairPriceLabel &&
+    detail.json.fairDeviationPct === undefined,
+  'listing exposes risk + fair-price label, hides admin-only deviation %',
+);
 
 // search (OpenSearch when configured, else Postgres) — free-text + filter
 const searchRes = await call(`/listings?q=Swift&sort=recent`).then((r) => r.json);

@@ -4,13 +4,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CheckType, MediaType, VehicleStatus, VerificationTier, type Vehicle } from '@mana/db';
+import {
+  CheckType,
+  MediaType,
+  Prisma,
+  VehicleStatus,
+  VerificationTier,
+  type Vehicle,
+} from '@mana/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { DealersService } from '../dealers/dealers.service';
 import { VerificationService } from '../verification/verification.service';
 import type { AddMediaDto, CreateVehicleDto, UpdateVehicleDto } from './dto';
 import { publishBlocker } from './rules';
 import { estimateValuation, dealScore } from './valuation';
+import { fairPrice } from '../listings-intel/fair-price';
+import { riskScore } from '../listings-intel/risk-score';
 import { assessOdometer } from '../inspections/odometer';
 import { AlertsService } from '../alerts/alerts.service';
 import { BillingService } from '../billing/billing.service';
@@ -208,6 +217,20 @@ export class VehiclesService {
       manufactureYear: vehicle.manufactureYear,
       odometerKm: vehicle.odometerKm,
     });
+    const fp = fairPrice(vehicle.price, band.fair);
+    const inspected = await this.prisma.inspection.count({ where: { vehicleId } });
+    const risk = riskScore({
+      manufactureYear: vehicle.manufactureYear,
+      odometerKm: vehicle.odometerKm,
+      ownersCount: vehicle.ownersCount,
+      source: vehicle.source,
+      accidentFree: vehicle.accidentFree,
+      accidentClaims: vehicle.accidentClaims,
+      rcVerified: !!verification?.verifiedAt,
+      odometerFraudRisk: odometer.fraudRisk,
+      inspected: inspected > 0,
+      city: vehicle.city,
+    });
     await this.prisma.vehicle.update({
       where: { id: vehicleId },
       data: {
@@ -217,6 +240,11 @@ export class VehiclesService {
         valuationFair: band.fair,
         valuationHigh: band.high,
         dealScore: vehicle.price ? dealScore(vehicle.price, band.fair) : null,
+        fairPriceLabel: fp?.label ?? null,
+        fairDeviationPct: fp?.deviationPct ?? null,
+        riskScore: risk.score,
+        riskBand: risk.band,
+        riskFactors: risk.factors as unknown as Prisma.InputJsonValue,
       },
     });
     await this.search.syncVehicle(vehicleId);
@@ -251,6 +279,8 @@ export class VehiclesService {
     if (!vehicle || vehicle.status !== VehicleStatus.LIVE) {
       throw new NotFoundException('Listing not available');
     }
-    return vehicle;
+    // Fair-price deviation % is admin-only; the public sees the label only.
+    const { fairDeviationPct: _omit, ...pub } = vehicle;
+    return pub;
   }
 }

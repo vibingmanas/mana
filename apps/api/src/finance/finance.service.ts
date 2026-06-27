@@ -47,6 +47,15 @@ export class FinanceService {
     return v;
   }
 
+  /** Finance + RC flows route through the listing's dealer, so a dealer is required. */
+  private async dealerListing(vehicleId: string) {
+    const v = await this.liveVehicle(vehicleId);
+    if (!v.dealerId) {
+      throw new BadRequestException('This service is available only on dealer-listed cars');
+    }
+    return v as typeof v & { dealerId: string };
+  }
+
   emiCalc(price: number, downPayment: number, rate: number, tenure: number) {
     return computeEmi(price, downPayment, rate, tenure);
   }
@@ -59,7 +68,7 @@ export class FinanceService {
     tenureMonths: number,
   ) {
     const buyerId = await this.ensureBuyer(userId);
-    const vehicle = await this.liveVehicle(vehicleId);
+    const vehicle = await this.dealerListing(vehicleId);
     const decision = await this.lender.underwriteConsumer({ amount, downPayment, tenureMonths });
 
     const app = await this.prisma.financeApplication.create({
@@ -278,7 +287,7 @@ export class FinanceService {
 
   async openRcTransfer(userId: string, vehicleId: string) {
     const buyerId = await this.ensureBuyer(userId);
-    const vehicle = await this.liveVehicle(vehicleId);
+    const vehicle = await this.dealerListing(vehicleId);
     const steps = RC_STEPS.map((key) => ({ key, done: false }));
     return this.prisma.rcTransferCase.create({
       data: {
