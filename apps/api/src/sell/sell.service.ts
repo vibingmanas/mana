@@ -64,6 +64,7 @@ export class SellService {
         estHigh: Math.round(fair * 1.08),
         status: SellStatus.ESTIMATED,
       },
+      include: { offers: true },
     });
   }
 
