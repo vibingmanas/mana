@@ -21,6 +21,7 @@ import { BillingModule } from './billing/billing.module';
 import { SellModule } from './sell/sell.module';
 import { SearchModule } from './search/search.module';
 import { AuctionsModule } from './auctions/auctions.module';
+import { BootstrapModule } from './bootstrap/bootstrap.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AuctionsModule } from './auctions/auctions.module';
     BillingModule,
     SellModule,
     AuctionsModule,
+    BootstrapModule,
     HealthModule,
   ],
 })
