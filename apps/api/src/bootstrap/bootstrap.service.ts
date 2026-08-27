@@ -9,10 +9,12 @@ import {
   VehicleStatus,
   VerificationTier,
 } from '@mana/db';
+import { MediaType } from '@mana/db';
 import { PrismaService } from '../prisma/prisma.service';
 import { estimateValuation } from '../vehicles/valuation';
 import { fairPrice } from '../listings-intel/fair-price';
 import { riskScore } from '../listings-intel/risk-score';
+import { photosFor } from './car-photos';
 
 /**
  * Seeds a demo dataset the first time the app boots against an un-seeded database
@@ -30,14 +32,44 @@ export class BootstrapService implements OnApplicationBootstrap {
     // Seed when the demo dataset is absent (no auction listings yet). Covers both
     // a fresh DB and a partially-seeded one. A real env with live auctions won't reseed.
     const auctions = await this.prisma.auction.count();
-    if (auctions > 0) return;
-    this.logger.log('No auctions found — seeding demo dataset…');
-    try {
-      await this.seed();
-      this.logger.log('Demo seed complete.');
-    } catch (e) {
-      this.logger.error(`Demo seed failed: ${String(e)}`);
+    if (auctions === 0) {
+      this.logger.log('No auctions found — seeding demo dataset…');
+      try {
+        await this.seed();
+        this.logger.log('Demo seed complete.');
+      } catch (e) {
+        this.logger.error(`Demo seed failed: ${String(e)}`);
+      }
     }
+    // Always: give any photoless LIVE listing stock photos (idempotent — skips
+    // vehicles that already have media, so dealer-uploaded photos are untouched).
+    try {
+      await this.backfillPhotos();
+    } catch (e) {
+      this.logger.error(`Photo backfill failed: ${String(e)}`);
+    }
+  }
+
+  private async backfillPhotos() {
+    const live = await this.prisma.vehicle.findMany({
+      where: { status: VehicleStatus.LIVE },
+      select: { id: true, bodyType: true, _count: { select: { media: true } } },
+    });
+    let added = 0;
+    for (const v of live) {
+      if (v._count.media > 0) continue;
+      await this.prisma.mediaAsset.createMany({
+        data: photosFor(v.bodyType).map((url, i) => ({
+          vehicleId: v.id,
+          type: MediaType.PHOTO,
+          url,
+          position: i,
+          capturedVia: 'seed',
+        })),
+      });
+      added++;
+    }
+    if (added) this.logger.log(`Backfilled photos for ${added} listing(s).`);
   }
 
   private async seed() {
